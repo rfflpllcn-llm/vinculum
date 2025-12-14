@@ -149,6 +149,72 @@ export interface AIAuditInput {
 }
 
 // ============================================================================
+// 10. View Mode & UI State (Phase 2)
+// ============================================================================
+
+/**
+ * Application view mode
+ */
+export type ViewMode = 'single' | 'dual';
+
+/**
+ * Scroll position tracking for sync scroll
+ */
+export interface ScrollPosition {
+  page: number;
+  offsetY: number; // pixels from top of page
+  normalizedY: number; // 0-1 within page
+}
+
+// ============================================================================
+// 11. JSONL Import Formats (Phase 2)
+// ============================================================================
+
+/**
+ * Language chunk from user's JSONL file
+ * Represents a text segment with location metadata
+ */
+export interface LanguageChunk {
+  text: string;
+  chunk_id: number;
+  language: string; // e.g. "en", "it"
+  page: string; // e.g. "001"
+}
+
+/**
+ * Alignment pair from user's JSONL file
+ * Links source and target text chunks with validation data
+ */
+export interface AlignmentPair {
+  alignment_id: number;
+  pair_id: number;
+  src_text: string;
+  tgt_text: string;
+  src_lang: string;
+  tgt_lang: string;
+  alignment_type: string; // e.g. "1-1", "1-N", "N-1", "N-N"
+  src_chunks: number[]; // chunk_id references
+  tgt_chunks: number[]; // chunk_id references
+  validation: {
+    is_valid_alignment: boolean;
+    confidence: number;
+    reason: string;
+    validation_success: boolean;
+    error: string | null;
+  };
+}
+
+/**
+ * Result of parsing alignment JSONL files
+ */
+export interface ParsedAlignmentData {
+  sourceAnchors: Anchor[];
+  targetAnchors: Anchor[];
+  alignments: Alignment[];
+  chunkMap: Map<number, LanguageChunk>;
+}
+
+// ============================================================================
 // Utility Types
 // ============================================================================
 
