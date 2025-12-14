@@ -137,8 +137,8 @@ export default function PDFViewer({
       h: selectionRect.height / viewport.height,
     };
 
-    // Extract text from selection (simplified - actual implementation would use PDF text layer)
-    const quote = `Selected text at page ${currentPage}`;
+    // Extract text from selection
+    const quote = await extractTextFromRect(page, viewport, selectionRect);
 
     if (onAnchorCreate) {
       onAnchorCreate(currentPage, normalizedRect, quote);
@@ -146,6 +146,100 @@ export default function PDFViewer({
 
     setSelectionStart(null);
     setSelectionRect(null);
+  };
+
+  /**
+   * Extract text from a rectangular selection on the PDF page
+   */
+  const extractTextFromRect = async (
+    page: pdfjsLib.PDFPageProxy,
+    viewport: pdfjsLib.PageViewport,
+    rect: DOMRect
+  ): Promise<string> => {
+    try {
+      const textContent = await page.getTextContent();
+      const selectedTexts: Array<{ text: string; y: number; x: number }> = [];
+
+      // Iterate through text items and check if they're within the selection
+      textContent.items.forEach((item: any) => {
+        if (!item.transform || !item.str) return;
+
+        // Get text position in viewport coordinates
+        const tx = item.transform[4];
+        const ty = item.transform[5];
+        const itemHeight = item.height || 12;
+        const itemWidth = item.width || 0;
+
+        // Convert PDF coordinates to viewport coordinates
+        const [x, y] = viewport.convertToViewportPoint(tx, ty);
+        const [x2, y2] = viewport.convertToViewportPoint(
+          tx + itemWidth,
+          ty + itemHeight
+        );
+
+        // Check if text item is mostly within the selection rectangle
+        const itemRect = {
+          left: Math.min(x, x2),
+          right: Math.max(x, x2),
+          top: Math.min(y, y2),
+          bottom: Math.max(y, y2),
+        };
+
+        const selRect = {
+          left: rect.x,
+          right: rect.x + rect.width,
+          top: rect.y,
+          bottom: rect.y + rect.height,
+        };
+
+        // Calculate the center point of the text item
+        const centerX = (itemRect.left + itemRect.right) / 2;
+        const centerY = (itemRect.top + itemRect.bottom) / 2;
+
+        // Check if the center of the text is within the selection
+        // This provides more precise selection
+        const isInside =
+          centerX >= selRect.left &&
+          centerX <= selRect.right &&
+          centerY >= selRect.top &&
+          centerY <= selRect.bottom;
+
+        if (isInside) {
+          selectedTexts.push({
+            text: item.str,
+            y: Math.min(y, y2),
+            x: Math.min(x, x2),
+          });
+        }
+      });
+
+      // Sort by vertical position (top to bottom), then horizontal (left to right)
+      selectedTexts.sort((a, b) => {
+        const yDiff = a.y - b.y;
+        if (Math.abs(yDiff) > 5) return yDiff; // Different lines
+        return a.x - b.x; // Same line, sort by x
+      });
+
+      // Combine text with proper spacing
+      let result = "";
+      let lastY = -1;
+      selectedTexts.forEach((item, index) => {
+        if (lastY >= 0 && Math.abs(item.y - lastY) > 5) {
+          // New line
+          result += "\n";
+        } else if (index > 0) {
+          // Same line, add space
+          result += " ";
+        }
+        result += item.text;
+        lastY = item.y;
+      });
+
+      return result.trim() || `Selected area on page ${currentPage}`;
+    } catch (error) {
+      console.error("Error extracting text:", error);
+      return `Selected area on page ${currentPage}`;
+    }
   };
 
   if (loading) {
