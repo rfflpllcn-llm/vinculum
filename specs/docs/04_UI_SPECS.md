@@ -45,7 +45,7 @@ Manage Google Drive–backed documents.
 
 ### Behavior
 
-- On load, fetch `/CodexLink_Data/Books` from Drive  
+- On load, fetch `/Vinculum_Data/Books` from Drive  
 - Clicking a document opens it in the main workspace  
 - Library closes automatically on open
 

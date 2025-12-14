@@ -113,7 +113,7 @@ if (hasErrors) {
   console.log('1. Run: npm run dev');
   console.log('2. Open: http://localhost:3000');
   console.log('3. Sign in with Google');
-  console.log('4. Upload a PDF to Google Drive: /CodexLink_Data/Books/');
+  console.log('4. Upload a PDF to Google Drive: /Vinculum_Data/Books/');
   console.log('5. See TESTING.md for detailed testing instructions');
   process.exit(0);
 }

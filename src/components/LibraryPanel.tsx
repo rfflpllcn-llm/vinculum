@@ -86,7 +86,7 @@ export default function LibraryPanel({
                 Upload PDF or Markdown files to your Google Drive folder:
               </p>
               <p className="text-sm font-mono mt-1">
-                /CodexLink_Data/Books/
+                /Vinculum_Data/Books/
               </p>
             </div>
           )}

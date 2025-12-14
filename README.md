@@ -99,7 +99,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 1. Sign in with your Google account
 2. Upload PDF or Markdown files to your Google Drive
-3. Place them in `/CodexLink_Data/Books/` folder (created automatically on first login)
+3. Place them in `/Vinculum_Data/Books/` folder (created automatically on first login)
 
 ## Project Structure
 
@@ -142,7 +142,7 @@ All data structures conform to `specs/docs/05_DATA_SCHEMAS.md`. Key entities:
 
 Storage structure in Google Drive:
 ```
-/CodexLink_Data/
+/Vinculum_Data/
   /Books/          # PDF and Markdown files
   /Metadata/       # Anchors, notes, alignments (JSON)
   /Backups/        # Future use

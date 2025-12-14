@@ -5,7 +5,7 @@ import { DriveService } from "@/lib/drive";
 
 /**
  * GET /api/documents
- * List all documents from Google Drive /CodexLink_Data/Books
+ * List all documents from Google Drive /Vinculum_Data/Books
  */
 export async function GET(req: NextRequest) {
   try {

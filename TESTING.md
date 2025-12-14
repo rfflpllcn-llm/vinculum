@@ -118,7 +118,7 @@ You have two options:
 #### Option A: Upload via Google Drive Web
 
 1. Go to https://drive.google.com
-2. The app will have created a folder: `/CodexLink_Data/Books/`
+2. The app will have created a folder: `/Vinculum_Data/Books/`
 3. Upload a PDF file to this folder
    - You can use any PDF (research paper, book, etc.)
    - Recommended: A PDF with selectable text (not scanned images)
@@ -126,7 +126,7 @@ You have two options:
 #### Option B: Create Test Folder Manually
 
 If the folder doesn't exist yet:
-1. Create folder: `CodexLink_Data`
+1. Create folder: `Vinculum_Data`
 2. Inside it, create: `Books`
 3. Upload a PDF to `Books` folder
 
@@ -184,7 +184,7 @@ If the folder doesn't exist yet:
 
 1. **Check Google Drive**
    - Go to https://drive.google.com
-   - Navigate to `/CodexLink_Data/Metadata/`
+   - Navigate to `/Vinculum_Data/Metadata/`
    - You should see a JSON file: `anchor_[uuid].json`
    - Click to view - it contains your anchor data
 
@@ -240,7 +240,7 @@ If the folder doesn't exist yet:
 
 **Solution**:
 1. Check browser console for errors
-2. Verify the PDF is in `/CodexLink_Data/Books/` folder
+2. Verify the PDF is in `/Vinculum_Data/Books/` folder
 3. Try a different PDF (ensure it's not corrupted)
 4. Clear browser cache and reload
 
@@ -297,14 +297,14 @@ After successfully testing Phase 1, you can:
 ```
 
 ### Test with Multiple Documents
-1. Upload several PDFs to `/CodexLink_Data/Books/`
+1. Upload several PDFs to `/Vinculum_Data/Books/`
 2. Test switching between documents
 3. Create anchors in different documents
 
 ### Test Data Location
 All metadata is stored in Google Drive:
 ```
-/CodexLink_Data/
+/Vinculum_Data/
   /Books/          ← Your PDF files
   /Metadata/       ← Anchor JSON files (auto-created)
   /Backups/        ← Future use

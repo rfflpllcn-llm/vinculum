@@ -6,13 +6,13 @@ import { Document } from "@/types/schemas";
  * Conforms to Architecture specs (07_ARCHITECTURE.md)
  *
  * Storage structure:
- * /CodexLink_Data/
+ * /Vinculum_Data/
  *   /Books/ (PDFs, Markdown)
  *   /Metadata/ (anchors, notes, alignments)
  *   /Backups/
  */
 
-const VINCULUM_FOLDER = "CodexLink_Data";
+const VINCULUM_FOLDER = "Vinculum_Data";
 const BOOKS_FOLDER = "Books";
 const METADATA_FOLDER = "Metadata";
 
@@ -74,7 +74,7 @@ export class DriveService {
   }
 
   /**
-   * List documents from /CodexLink_Data/Books
+   * List documents from /Vinculum_Data/Books
    */
   async listDocuments(): Promise<Document[]> {
     const rootFolder = await this.findOrCreateFolder(VINCULUM_FOLDER);

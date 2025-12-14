@@ -82,7 +82,7 @@ Vinculum is a **client-centric web application** with:
 ### Primary storage
 
 - Google Drive  
-- Folder: `/CodexLink_Data/`
+- Folder: `/Vinculum_Data/`
 
 Subfolders:
 
