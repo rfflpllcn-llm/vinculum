@@ -1,13 +1,13 @@
 # Feature Checklist & Milestones
 
-## Phase 1 — Foundations
+## Phase 1 — Foundations ✅ COMPLETED
 
-- [ ] Google Drive OAuth  
-- [ ] PDF library browser  
-- [ ] Single PDF viewer  
-- [ ] Anchor creation (rectangular)  
-- [ ] Markdown note editor  
-- [ ] Anchor persistence
+- [x] Google Drive OAuth
+- [x] PDF library browser
+- [x] Single PDF viewer
+- [x] Anchor creation (rectangular)
+- [x] Markdown note editor
+- [x] Anchor persistence
 
 ## Phase 2 — Alignment & AI
 
