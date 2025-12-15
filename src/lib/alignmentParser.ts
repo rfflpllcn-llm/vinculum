@@ -94,12 +94,20 @@ export async function parseAlignmentFiles(
   const alignments: Alignment[] = [];
 
   for (const pair of pairs) {
+    // Extract chunk IDs (handle both number[] and LanguageChunk[] formats)
+    const srcChunkIds = pair.src_chunks.map(item =>
+      typeof item === 'number' ? item : item.chunk_id
+    );
+    const tgtChunkIds = pair.tgt_chunks.map(item =>
+      typeof item === 'number' ? item : item.chunk_id
+    );
+
     // Get anchor IDs from src_chunks and tgt_chunks
-    const sourceAnchorIds = pair.src_chunks
+    const sourceAnchorIds = srcChunkIds
       .map(chunkId => chunkToAnchorMap.get(chunkId))
       .filter((id): id is UUID => id !== undefined);
 
-    const targetAnchorIds = pair.tgt_chunks
+    const targetAnchorIds = tgtChunkIds
       .map(chunkId => chunkToAnchorMap.get(chunkId))
       .filter((id): id is UUID => id !== undefined);
 

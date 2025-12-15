@@ -28,6 +28,14 @@ export async function findTextInPDF(
   pageNumber: number
 ): Promise<NormalizedRect | null> {
   try {
+    // Validate page number
+    if (pageNumber < 1 || pageNumber > pdfDoc.numPages) {
+      console.warn(
+        `Page ${pageNumber} out of range (PDF has ${pdfDoc.numPages} pages). Skipping.`
+      );
+      return null;
+    }
+
     const page = await pdfDoc.getPage(pageNumber);
     const textContent = await page.getTextContent();
     const viewport = page.getViewport({ scale: 1.0 });

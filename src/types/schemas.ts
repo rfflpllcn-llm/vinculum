@@ -193,8 +193,8 @@ export interface AlignmentPair {
   src_lang: string;
   tgt_lang: string;
   alignment_type: string; // e.g. "1-1", "1-N", "N-1", "N-N"
-  src_chunks: number[]; // chunk_id references
-  tgt_chunks: number[]; // chunk_id references
+  src_chunks: number[] | LanguageChunk[]; // chunk_id references or full chunk objects
+  tgt_chunks: number[] | LanguageChunk[]; // chunk_id references or full chunk objects
   validation: {
     is_valid_alignment: boolean;
     confidence: number;
