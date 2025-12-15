@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { DriveService } from '@/lib/drive';
 import { parseAlignmentFiles } from '@/lib/alignmentParser';
-import * as pdfjsLib from 'pdfjs-dist';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { UUID, Anchor, Alignment } from '@/types/schemas';
 
 /**

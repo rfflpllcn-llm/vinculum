@@ -1,9 +1,10 @@
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { NormalizedRect } from "@/types/schemas";
 
 /**
  * PDF Text Search Utility
  * Locates text within PDF pages and returns normalized bounding boxes
+ * Uses legacy build for Node.js compatibility
  */
 
 interface TextItem {
