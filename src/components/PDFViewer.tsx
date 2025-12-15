@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-import { Document, NormalizedRect } from "@/types/schemas";
+import { Document, NormalizedRect, ScrollPosition, Anchor } from "@/types/schemas";
 
 // Configure PDF.js worker - use local worker file
 if (typeof window !== "undefined") {
@@ -13,12 +13,20 @@ interface PDFViewerProps {
   document: Document;
   fileData: ArrayBuffer;
   onAnchorCreate?: (page: number, rect: NormalizedRect, quote: string) => void;
+  externalScrollPosition?: ScrollPosition;
+  onScroll?: (position: ScrollPosition) => void;
+  readOnly?: boolean;
+  highlightedAnchors?: Anchor[];
 }
 
 export default function PDFViewer({
   document: doc,
   fileData,
   onAnchorCreate,
+  externalScrollPosition,
+  onScroll,
+  readOnly = false,
+  highlightedAnchors = [],
 }: PDFViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,8 +88,56 @@ export default function PDFViewer({
     renderPage();
   }, [pdfDoc, currentPage, scale]);
 
+  // Handle scroll events and emit scroll position
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !onScroll) return;
+
+    const handleScroll = () => {
+      const scrollTop = container.scrollTop;
+      const scrollHeight = container.scrollHeight;
+      const clientHeight = container.clientHeight;
+
+      // Calculate current scroll position
+      const normalizedY = scrollHeight > 0 ? scrollTop / scrollHeight : 0;
+
+      const position: ScrollPosition = {
+        page: currentPage,
+        offsetY: scrollTop,
+        normalizedY,
+      };
+
+      onScroll(position);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [currentPage, onScroll]);
+
+  // Handle external scroll position updates
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !externalScrollPosition) return;
+
+    // Update current page if needed
+    if (externalScrollPosition.page !== currentPage) {
+      setCurrentPage(externalScrollPosition.page);
+    }
+
+    // Scroll to position
+    const scrollHeight = container.scrollHeight;
+    const targetScrollTop = externalScrollPosition.normalizedY * scrollHeight;
+
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: 'smooth',
+    });
+  }, [externalScrollPosition, currentPage]);
+
   // Handle mouse events for selection
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Disable selection in read-only mode
+    if (readOnly) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -302,9 +358,9 @@ export default function PDFViewer({
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            className="shadow-lg cursor-crosshair"
+            className={`shadow-lg ${readOnly ? 'cursor-default' : 'cursor-crosshair'}`}
           />
-          {selectionRect && (
+          {selectionRect && !readOnly && (
             <div
               className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-30 pointer-events-none"
               style={{
@@ -315,6 +371,26 @@ export default function PDFViewer({
               }}
             />
           )}
+          {/* Render highlighted anchors */}
+          {highlightedAnchors
+            .filter(anchor => anchor.documentId === doc.documentId && anchor.page === currentPage)
+            .map((anchor) => {
+              if (!canvasRef.current) return null;
+              const canvas = canvasRef.current;
+              const rect = anchor.rect;
+              return (
+                <div
+                  key={anchor.anchorId}
+                  className="absolute border-2 border-yellow-500 bg-yellow-200 bg-opacity-20 pointer-events-none"
+                  style={{
+                    left: rect.x * canvas.width,
+                    top: rect.y * canvas.height,
+                    width: rect.w * canvas.width,
+                    height: rect.h * canvas.height,
+                  }}
+                />
+              );
+            })}
         </div>
       </div>
     </div>

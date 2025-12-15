@@ -197,4 +197,31 @@ export class DriveService {
 
     return response.data;
   }
+
+  /**
+   * List metadata files matching a pattern
+   * @param pattern - Filename pattern (e.g., "alignment_*")
+   * @returns Array of filenames
+   */
+  async listMetadataFiles(pattern: string): Promise<string[]> {
+    const rootFolder = await this.findOrCreateFolder(VINCULUM_FOLDER);
+    const metadataFolder = await this.findOrCreateFolder(
+      METADATA_FOLDER,
+      rootFolder
+    );
+
+    // Convert pattern to Google Drive query format
+    // For now, support simple prefix matching
+    const prefix = pattern.replace('*', '');
+    const query = `'${metadataFolder}' in parents and trashed=false and name contains '${prefix}'`;
+
+    const response = await this.drive.files.list({
+      q: query,
+      fields: "files(name)",
+      spaces: "drive",
+      orderBy: "name",
+    });
+
+    return (response.data.files || []).map(file => file.name!);
+  }
 }

@@ -6,18 +6,37 @@ import { useRouter } from "next/navigation";
 import LibraryPanel from "@/components/LibraryPanel";
 import PDFViewer from "@/components/PDFViewer";
 import NotesPanel from "@/components/NotesPanel";
-import { Document, NormalizedRect, Anchor } from "@/types/schemas";
+import DualDocumentView from "@/components/DualDocumentView";
+import ViewModeToggle from "@/components/ViewModeToggle";
+import AlignmentVisualization from "@/components/AlignmentVisualization";
+import AIAuditModal from "@/components/AIAuditModal";
+import { Document, NormalizedRect, Anchor, ViewMode, Alignment } from "@/types/schemas";
 import { generateUUID } from "@/lib/utils";
 
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [libraryOpen, setLibraryOpen] = useState(false);
+
+  // Single view state
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [fileData, setFileData] = useState<ArrayBuffer | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
   const [selectedAnchor, setSelectedAnchor] = useState<Anchor | null>(null);
   const [noteContent, setNoteContent] = useState("");
+
+  // Dual view state
+  const [viewMode, setViewMode] = useState<ViewMode>('single');
+  const [sourceDocument, setSourceDocument] = useState<Document | null>(null);
+  const [targetDocument, setTargetDocument] = useState<Document | null>(null);
+  const [sourceFileData, setSourceFileData] = useState<ArrayBuffer | null>(null);
+  const [targetFileData, setTargetFileData] = useState<ArrayBuffer | null>(null);
+  const [sourceAnchors, setSourceAnchors] = useState<Anchor[]>([]);
+  const [targetAnchors, setTargetAnchors] = useState<Anchor[]>([]);
+  const [alignments, setAlignments] = useState<Alignment[]>([]);
+  const [syncScrollEnabled, setSyncScrollEnabled] = useState(true);
+  const [selectedAlignment, setSelectedAlignment] = useState<Alignment | null>(null);
+  const [showAuditModal, setShowAuditModal] = useState(false);
 
   // Load file data when document is selected
   useEffect(() => {
@@ -82,6 +101,46 @@ export default function Home() {
     }
   };
 
+  const handleAlignmentUpload = async (
+    chunksFile: File,
+    alignmentsFile: File,
+    sourceDoc: Document,
+    targetDoc: Document
+  ) => {
+    try {
+      const formData = new FormData();
+      formData.append('chunksFile', chunksFile);
+      formData.append('alignmentsFile', alignmentsFile);
+      formData.append('sourceDocId', generateUUID());
+      formData.append('targetDocId', generateUUID());
+      formData.append('sourceDriveFileId', sourceDoc.driveFileId);
+      formData.append('targetDriveFileId', targetDoc.driveFileId);
+
+      const response = await fetch('/api/alignments/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Failed to upload alignments');
+
+      const result = await response.json();
+      console.log('Alignment upload result:', result);
+      alert(`Uploaded ${result.alignmentsCount} alignments successfully!`);
+
+      // Load the alignments
+      // TODO: Implement loading logic
+
+    } catch (error) {
+      console.error('Error uploading alignments:', error);
+      alert('Failed to upload alignments');
+    }
+  };
+
+  const handleAlignmentSelect = (alignment: Alignment) => {
+    setSelectedAlignment(alignment);
+    setShowAuditModal(true);
+  };
+
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -123,6 +182,11 @@ export default function Home() {
             </button>
           </div>
           <div className="flex items-center space-x-4">
+            <ViewModeToggle
+              viewMode={viewMode}
+              onChange={setViewMode}
+              disabled={viewMode === 'dual' && (!sourceDocument || !targetDocument)}
+            />
             <span className="text-sm text-gray-600">{session.user?.email}</span>
             <button
               onClick={() => signOut()}
@@ -135,49 +199,101 @@ export default function Home() {
       </div>
 
       <div className="flex-1 flex bg-gray-50 overflow-hidden">
-        {selectedDocument && fileData ? (
-          <>
-            {/* PDF/Document Viewer */}
-            <div className="flex-1 flex flex-col">
-              {loadingFile ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-gray-500">Loading document...</div>
-                </div>
-              ) : selectedDocument.mimeType === "application/pdf" ? (
-                <PDFViewer
-                  document={selectedDocument}
-                  fileData={fileData}
-                  onAnchorCreate={handleAnchorCreate}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-gray-500">Markdown viewer coming soon...</div>
-                </div>
-              )}
-            </div>
+        {viewMode === 'single' ? (
+          /* Single View Mode */
+          selectedDocument && fileData ? (
+            <>
+              {/* PDF/Document Viewer */}
+              <div className="flex-1 flex flex-col">
+                {loadingFile ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-gray-500">Loading document...</div>
+                  </div>
+                ) : selectedDocument.mimeType === "application/pdf" ? (
+                  <PDFViewer
+                    document={selectedDocument}
+                    fileData={fileData}
+                    onAnchorCreate={handleAnchorCreate}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-gray-500">Markdown viewer coming soon...</div>
+                  </div>
+                )}
+              </div>
 
-            {/* Notes Panel */}
-            <NotesPanel
-              selectedAnchor={selectedAnchor}
-              noteContent={noteContent}
-              onNoteChange={setNoteContent}
-              onNoteSave={handleNoteSave}
-            />
-          </>
-        ) : selectedDocument ? (
-          <div className="flex items-center justify-center w-full">
-            <div className="text-gray-500">Loading document...</div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center w-full">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">Vinculum</h1>
-              <p className="text-gray-600">Scholarly web application for aligned document reading</p>
-              <p className="text-sm text-gray-500 mt-2">
-                Click <strong>Library</strong> to get started
-              </p>
+              {/* Notes Panel */}
+              <NotesPanel
+                selectedAnchor={selectedAnchor}
+                noteContent={noteContent}
+                onNoteChange={setNoteContent}
+                onNoteSave={handleNoteSave}
+              />
+            </>
+          ) : selectedDocument ? (
+            <div className="flex items-center justify-center w-full">
+              <div className="text-gray-500">Loading document...</div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center justify-center w-full">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-gray-900 mb-4">Vinculum</h1>
+                <p className="text-gray-600">Scholarly web application for aligned document reading</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Click <strong>Library</strong> to get started
+                </p>
+              </div>
+            </div>
+          )
+        ) : (
+          /* Dual View Mode */
+          sourceDocument && targetDocument && sourceFileData && targetFileData ? (
+            <>
+              <DualDocumentView
+                sourceDocument={sourceDocument}
+                targetDocument={targetDocument}
+                sourceFileData={sourceFileData}
+                targetFileData={targetFileData}
+                sourceAnchors={sourceAnchors}
+                targetAnchors={targetAnchors}
+                alignments={alignments}
+                syncScrollEnabled={syncScrollEnabled}
+                onAlignmentSelect={handleAlignmentSelect}
+              />
+              {/* Alignment Panel */}
+              <div className="w-80 bg-white border-l overflow-y-auto">
+                <div className="p-3 border-b">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={syncScrollEnabled}
+                      onChange={(e) => setSyncScrollEnabled(e.target.checked)}
+                    />
+                    <span className="text-sm">Sync Scroll</span>
+                  </label>
+                </div>
+                <AlignmentVisualization
+                  alignments={alignments}
+                  sourceAnchors={sourceAnchors}
+                  targetAnchors={targetAnchors}
+                  onSelect={handleAlignmentSelect}
+                  selectedAlignmentId={selectedAlignment?.alignmentId}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center w-full">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">Dual View Mode</h2>
+                <p className="text-gray-600 mb-4">
+                  Upload alignment files to view documents side-by-side
+                </p>
+                <p className="text-sm text-gray-500">
+                  Use the Library to select source and target documents, then upload JSONL files
+                </p>
+              </div>
+            </div>
+          )
         )}
       </div>
 
@@ -185,6 +301,22 @@ export default function Home() {
         isOpen={libraryOpen}
         onClose={() => setLibraryOpen(false)}
         onSelectDocument={(doc) => setSelectedDocument(doc)}
+      />
+
+      <AIAuditModal
+        isOpen={showAuditModal}
+        onClose={() => setShowAuditModal(false)}
+        alignment={selectedAlignment}
+        sourceAnchor={
+          selectedAlignment
+            ? sourceAnchors.find((a) => a.anchorId === selectedAlignment.sourceAnchorId) || null
+            : null
+        }
+        targetAnchor={
+          selectedAlignment
+            ? targetAnchors.find((a) => a.anchorId === selectedAlignment.targetAnchorId) || null
+            : null
+        }
       />
     </main>
   );
