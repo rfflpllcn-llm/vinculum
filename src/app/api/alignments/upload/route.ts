@@ -53,9 +53,22 @@ export async function POST(request: NextRequest) {
     const sourceBuffer = await drive.downloadFile(sourceDriveFileId);
     const targetBuffer = await drive.downloadFile(targetDriveFileId);
 
-    // Load PDFs with pdfjs
-    const sourcePDF = await pdfjsLib.getDocument({ data: sourceBuffer }).promise;
-    const targetPDF = await pdfjsLib.getDocument({ data: targetBuffer }).promise;
+    // Disable workers for Node.js environment
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+
+    // Load PDFs with pdfjs (disable worker for server-side)
+    const sourcePDF = await pdfjsLib.getDocument({
+      data: sourceBuffer,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+    }).promise;
+    const targetPDF = await pdfjsLib.getDocument({
+      data: targetBuffer,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+    }).promise;
 
     console.log('PDFs loaded. Parsing alignment files...');
 
