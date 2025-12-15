@@ -75,9 +75,13 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // TODO: Implement listing all anchors for a document
-    // For now, return empty array
-    const anchors: Anchor[] = [];
+    // Load anchors from Drive
+    const driveService = new DriveService(session.accessToken);
+    const filename = `anchors_${documentId}.json`;
+    const anchorsData = await driveService.loadMetadata(filename);
+
+    // Return anchors or empty array if file doesn't exist
+    const anchors: Anchor[] = anchorsData || [];
 
     return NextResponse.json({ anchors });
   } catch (error) {
