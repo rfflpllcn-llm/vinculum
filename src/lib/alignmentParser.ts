@@ -62,24 +62,49 @@ export async function parseAlignmentFiles(
   const pairs = await parseJSONL<AlignmentPair>(alignmentsFile);
   console.log(`Parsed ${pairs.length} alignment pairs`);
 
-  // Step 3: Build chunk_id → chunk map
-  const chunkMap = new Map<number, LanguageChunk>();
-  chunks.forEach(chunk => chunkMap.set(chunk.chunk_id, chunk));
+  // Step 3: Determine source and target languages from alignments
+  const sourceLang = pairs[0]?.src_lang || 'en';
+  const targetLang = pairs[0]?.tgt_lang || 'it';
+  console.log(`Source language: ${sourceLang}, Target language: ${targetLang}`);
 
-  // Step 4: Convert chunks to Anchors
+  // Step 4: Collect all chunk IDs referenced in alignments
+  const referencedChunkIds = new Set<number>();
+  pairs.forEach(pair => {
+    const srcChunkIds = pair.src_chunks.map(item =>
+      typeof item === 'number' ? item : item.chunk_id
+    );
+    const tgtChunkIds = pair.tgt_chunks.map(item =>
+      typeof item === 'number' ? item : item.chunk_id
+    );
+    srcChunkIds.forEach(id => referencedChunkIds.add(id));
+    tgtChunkIds.forEach(id => referencedChunkIds.add(id));
+  });
+  console.log(`Found ${referencedChunkIds.size} unique chunks referenced in alignments`);
+
+  // Step 5: Build chunk_id → chunk map (only for referenced chunks)
+  const chunkMap = new Map<number, LanguageChunk>();
+  chunks.forEach(chunk => {
+    if (referencedChunkIds.has(chunk.chunk_id)) {
+      chunkMap.set(chunk.chunk_id, chunk);
+    }
+  });
+
+  // Step 6: Convert referenced chunks to Anchors
   const sourceAnchors: Anchor[] = [];
   const targetAnchors: Anchor[] = [];
   const chunkToAnchorMap = new Map<number, UUID>();
 
-  console.log('Converting chunks to anchors with text search...');
+  console.log('Converting referenced chunks to anchors with text search...');
 
-  for (const chunk of chunks) {
-    const documentId = chunk.language === 'en' ? sourceDocumentId : targetDocumentId;
-    const pdfDoc = chunk.language === 'en' ? sourcePDF : targetPDF;
+  for (const chunk of chunkMap.values()) {
+    // Determine which document this chunk belongs to
+    const isSourceChunk = chunk.language === sourceLang;
+    const documentId = isSourceChunk ? sourceDocumentId : targetDocumentId;
+    const pdfDoc = isSourceChunk ? sourcePDF : targetPDF;
 
     const anchor = await chunkToAnchor(chunk, documentId, pdfDoc);
 
-    if (chunk.language === 'en') {
+    if (isSourceChunk) {
       sourceAnchors.push(anchor);
     } else {
       targetAnchors.push(anchor);
@@ -90,7 +115,7 @@ export async function parseAlignmentFiles(
 
   console.log(`Created ${sourceAnchors.length} source anchors, ${targetAnchors.length} target anchors`);
 
-  // Step 5: Convert alignment pairs to Alignments
+  // Step 7: Convert alignment pairs to Alignments
   const alignments: Alignment[] = [];
 
   for (const pair of pairs) {
