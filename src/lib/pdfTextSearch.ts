@@ -90,50 +90,214 @@ export async function findTextInPDF(
 
 /**
  * Find text items that match the search text
- * Uses fuzzy matching to handle variations in spacing and line breaks
+ * Uses improved matching to find the best occurrence when text appears multiple times
  */
 function findTextMatches(searchText: string, textItems: TextItem[]): TextItem[] {
   const normalizedSearch = normalizeText(searchText);
-  const matches: TextItem[] = [];
 
-  // Try exact phrase match first
-  const fullText = textItems.map(item => item.text).join(' ');
-  const normalizedFullText = normalizeText(fullText);
+  // Filter out only very short words, but keep everything else
+  const searchWords = normalizedSearch
+    .split(/\s+/)
+    .filter(w => w.length > 1);
 
-  if (normalizedFullText.includes(normalizedSearch)) {
-    // Find all items that contain parts of the search text
-    const searchWords = normalizedSearch.split(/\s+/);
-    let currentWordIndex = 0;
+  if (searchWords.length === 0) {
+    console.warn('No significant search words found:', searchText.substring(0, 50));
+    return [];
+  }
 
-    for (const item of textItems) {
-      const normalizedItem = normalizeText(item.text);
+  console.log(`Searching for ${searchWords.length} words: "${searchWords.slice(0, 5).join(' ')}..."`);
 
-      // Check if this item contains the current search word
-      if (currentWordIndex < searchWords.length &&
-          normalizedItem.includes(searchWords[currentWordIndex])) {
-        matches.push(item);
-        currentWordIndex++;
-      } else if (matches.length > 0 &&
-                 searchWords.slice(currentWordIndex).some(word => normalizedItem.includes(word))) {
-        // Item contains part of remaining search text
-        matches.push(item);
+  // Strategy: Find all possible starting points and score them
+  const candidates: { startIndex: number; matchedItems: TextItem[]; score: number; wordsMatched: number }[] = [];
+
+  for (let startIdx = 0; startIdx < textItems.length; startIdx++) {
+    const result = tryMatchFromIndex(startIdx, searchWords, textItems);
+    if (result.matchedItems.length > 0) {
+      candidates.push({
+        startIndex: startIdx,
+        matchedItems: result.matchedItems,
+        score: result.score,
+        wordsMatched: result.wordsMatched
+      });
+    }
+  }
+
+  if (candidates.length === 0) {
+    // Fallback: match individual words
+    console.warn('No sequence match found, falling back to word matching for:', searchText.substring(0, 50));
+    return fallbackWordMatch(searchWords, textItems);
+  }
+
+  // Return the best match (highest score)
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0];
+  const percentage = ((best.wordsMatched / searchWords.length) * 100).toFixed(0);
+  console.log(`✓ Best match: ${best.wordsMatched}/${searchWords.length} words (${percentage}%), score ${best.score.toFixed(1)}, ${best.matchedItems.length} items`);
+
+  return best.matchedItems;
+}
+
+/**
+ * Try to match search words starting from a specific index
+ */
+function tryMatchFromIndex(
+  startIdx: number,
+  searchWords: string[],
+  textItems: TextItem[]
+): { matchedItems: TextItem[]; score: number; wordsMatched: number } {
+  const matchedItems: TextItem[] = [];
+  let wordIdx = 0;
+  let consecutiveMatches = 0;
+  let totalWordsMatched = 0;
+  let gapCount = 0;
+
+  for (let i = startIdx; i < textItems.length && wordIdx < searchWords.length; i++) {
+    const normalizedItem = normalizeText(textItems[i].text);
+    const itemWords = normalizedItem.split(/\s+/).filter(w => w.length > 0);
+
+    let matched = false;
+    for (const itemWord of itemWords) {
+      if (wordIdx < searchWords.length) {
+        const searchWord = searchWords[wordIdx];
+
+        // Try multiple matching strategies:
+        // 1. Exact match
+        // 2. One contains the other (handles partial words)
+        // 3. Fuzzy match for typos/OCR errors (Levenshtein distance <= 2 for words > 4 chars)
+        const isExactMatch = itemWord === searchWord;
+        const isPartialMatch = itemWord.includes(searchWord) || searchWord.includes(itemWord);
+        const isFuzzyMatch = searchWord.length > 4 && itemWord.length > 4 &&
+                             levenshteinDistance(itemWord, searchWord) <= 2;
+
+        if (isExactMatch || isPartialMatch || isFuzzyMatch) {
+          if (!matchedItems.includes(textItems[i])) {
+            matchedItems.push(textItems[i]);
+          }
+          wordIdx++;
+          totalWordsMatched++;
+          consecutiveMatches++;
+          matched = true;
+          gapCount = 0;
+          break;
+        }
+      }
+    }
+
+    // If we didn't match but we've started matching, allow gaps
+    if (!matched && matchedItems.length > 0) {
+      gapCount++;
+      // Allow up to 5 items gap (for line breaks, etc)
+      if (gapCount > 5) {
+        break;
       }
     }
   }
 
-  // Fallback: match individual words
-  if (matches.length === 0) {
-    const searchWords = normalizedSearch.split(/\s+/).filter(w => w.length > 2);
+  // Score based on:
+  // 1. Percentage of search words matched
+  // 2. Consecutiveness of matches
+  // 3. Penalty for gaps
+  const completeness = totalWordsMatched / searchWords.length;
+  const score = (completeness * 100) + (consecutiveMatches * 5) - (gapCount * 2);
 
-    for (const item of textItems) {
-      const normalizedItem = normalizeText(item.text);
-      if (searchWords.some(word => normalizedItem.includes(word))) {
-        matches.push(item);
-      }
+  // Only return if we matched at least 40% and at least 3 words
+  // This is more lenient to handle OCR errors and text variations
+  if (completeness < 0.4 || totalWordsMatched < 3) {
+    return { matchedItems: [], score: 0, wordsMatched: 0 };
+  }
+
+  return { matchedItems, score, wordsMatched: totalWordsMatched };
+}
+
+/**
+ * Fallback: match items containing any of the search words
+ * Try to find the best contiguous sequence
+ */
+function fallbackWordMatch(searchWords: string[], textItems: TextItem[]): TextItem[] {
+  // Find all items that contain any search word
+  const matchingIndices: number[] = [];
+
+  for (let i = 0; i < textItems.length; i++) {
+    const normalizedItem = normalizeText(textItems[i].text);
+    if (searchWords.some(word => normalizedItem.includes(word))) {
+      matchingIndices.push(i);
     }
   }
 
+  if (matchingIndices.length === 0) {
+    console.warn('No matching words found at all');
+    return [];
+  }
+
+  // Find sequences with different gap tolerances and score them
+  const sequences: { start: number; length: number; actualIndices: number[] }[] = [];
+
+  // Try with gap tolerance of 2 (tight)
+  sequences.push(...findSequences(matchingIndices, 2));
+  // Try with gap tolerance of 3 (medium)
+  sequences.push(...findSequences(matchingIndices, 3));
+
+  if (sequences.length === 0) {
+    console.warn('No sequences found');
+    return [];
+  }
+
+  // Pick the sequence that best matches the search length (not too long, not too short)
+  const targetLength = Math.ceil(searchWords.length * 1.5); // Allow 50% extra for gaps
+  let bestSequence = sequences[0];
+  let bestScore = Math.abs(bestSequence.actualIndices.length - targetLength);
+
+  for (const seq of sequences) {
+    const actualLength = seq.actualIndices.length;
+    // Penalize sequences that are too long
+    const lengthPenalty = actualLength > targetLength ? (actualLength - targetLength) * 2 : 0;
+    const score = Math.abs(actualLength - targetLength) + lengthPenalty;
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestSequence = seq;
+    }
+  }
+
+  // Get the actual text items, but limit to 10 items max for tighter highlights
+  const maxItems = Math.min(10, Math.ceil(searchWords.length * 1.5));
+  const indices = bestSequence.actualIndices.slice(0, maxItems);
+  const matches: TextItem[] = indices.map(i => textItems[i]);
+
+  console.log(`Fallback: found ${matches.length} items (from ${bestSequence.actualIndices.length} candidates, max=${maxItems})`);
   return matches;
+}
+
+/**
+ * Find contiguous sequences with a given gap tolerance
+ */
+function findSequences(matchingIndices: number[], gapTolerance: number): { start: number; length: number; actualIndices: number[] }[] {
+  const sequences: { start: number; length: number; actualIndices: number[] }[] = [];
+  let currentStart = 0;
+  let currentIndices = [matchingIndices[0]];
+
+  for (let i = 1; i < matchingIndices.length; i++) {
+    if (matchingIndices[i] - matchingIndices[i - 1] <= gapTolerance) {
+      currentIndices.push(matchingIndices[i]);
+    } else {
+      sequences.push({
+        start: currentStart,
+        length: currentIndices.length,
+        actualIndices: [...currentIndices]
+      });
+      currentStart = i;
+      currentIndices = [matchingIndices[i]];
+    }
+  }
+
+  // Add last sequence
+  sequences.push({
+    start: currentStart,
+    length: currentIndices.length,
+    actualIndices: currentIndices
+  });
+
+  return sequences;
 }
 
 /**

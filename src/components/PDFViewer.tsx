@@ -17,6 +17,8 @@ interface PDFViewerProps {
   onScroll?: (position: ScrollPosition) => void;
   readOnly?: boolean;
   highlightedAnchors?: Anchor[];
+  selectedAnchors?: Anchor[]; // Anchors to highlight with selection color
+  onPageChange?: (page: number) => void; // Callback when page changes
 }
 
 export default function PDFViewer({
@@ -27,6 +29,8 @@ export default function PDFViewer({
   onScroll,
   readOnly = false,
   highlightedAnchors = [],
+  selectedAnchors = [],
+  onPageChange,
 }: PDFViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,6 +61,13 @@ export default function PDFViewer({
 
     loadPDF();
   }, [fileData]);
+
+  // Notify parent when page changes
+  useEffect(() => {
+    if (onPageChange) {
+      onPageChange(currentPage);
+    }
+  }, [currentPage, onPageChange]);
 
   // Render current page
   useEffect(() => {
@@ -371,7 +382,7 @@ export default function PDFViewer({
               }}
             />
           )}
-          {/* Render highlighted anchors */}
+          {/* Render highlighted anchors (all anchors in yellow) */}
           {highlightedAnchors
             .filter(anchor => anchor.documentId === doc.documentId && anchor.page === currentPage)
             .map((anchor) => {
@@ -382,6 +393,26 @@ export default function PDFViewer({
                 <div
                   key={anchor.anchorId}
                   className="absolute border-2 border-yellow-500 bg-yellow-200 bg-opacity-20 pointer-events-none"
+                  style={{
+                    left: rect.x * canvas.width,
+                    top: rect.y * canvas.height,
+                    width: rect.w * canvas.width,
+                    height: rect.h * canvas.height,
+                  }}
+                />
+              );
+            })}
+          {/* Render selected anchors (highlighted in green on top) */}
+          {selectedAnchors
+            .filter(anchor => anchor.documentId === doc.documentId && anchor.page === currentPage)
+            .map((anchor) => {
+              if (!canvasRef.current) return null;
+              const canvas = canvasRef.current;
+              const rect = anchor.rect;
+              return (
+                <div
+                  key={`selected-${anchor.anchorId}`}
+                  className="absolute border-2 border-green-600 bg-green-300 bg-opacity-40 pointer-events-none"
                   style={{
                     left: rect.x * canvas.width,
                     top: rect.y * canvas.height,

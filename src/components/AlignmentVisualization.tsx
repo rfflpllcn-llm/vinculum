@@ -13,6 +13,7 @@ interface AlignmentVisualizationProps {
   targetAnchors: Anchor[];
   onSelect?: (alignment: Alignment) => void;
   selectedAlignmentId?: string;
+  onAudit?: (alignment: Alignment) => void;
 }
 
 export default function AlignmentVisualization({
@@ -21,6 +22,7 @@ export default function AlignmentVisualization({
   targetAnchors,
   onSelect,
   selectedAlignmentId,
+  onAudit,
 }: AlignmentVisualizationProps) {
   if (alignments.length === 0) {
     return (
@@ -75,6 +77,17 @@ export default function AlignmentVisualization({
                   </span>
                 </div>
               </div>
+              {onAudit && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAudit(alignment);
+                  }}
+                  className="mt-2 w-full px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                >
+                  AI Audit
+                </button>
+              )}
             </div>
           );
         })}

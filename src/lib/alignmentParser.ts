@@ -10,7 +10,7 @@ import {
   NormalizedRect,
 } from "@/types/schemas";
 import { generateUUID, computeQuoteHash, getCurrentTimestamp } from "@/lib/utils";
-import { findTextInPDF } from "@/lib/pdfTextSearch";
+import { findTextByEmbedding } from "@/lib/embeddingSearch";
 
 /**
  * Parse JSONL file (one JSON object per line)
@@ -179,11 +179,11 @@ async function chunkToAnchor(
 ): Promise<Anchor> {
   const page = parseInt(chunk.page, 10);
 
-  // Search for text in PDF to get rect
+  // Search for text in PDF using embeddings to get rect
   let rect: NormalizedRect | null = null;
 
   try {
-    rect = await findTextInPDF(pdfDoc, chunk.text, page);
+    rect = await findTextByEmbedding(pdfDoc, chunk.text, page);
   } catch (error) {
     console.error(`Error searching text for chunk ${chunk.chunk_id}:`, error);
   }

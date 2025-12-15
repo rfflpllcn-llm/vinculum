@@ -41,6 +41,7 @@ export default function Home() {
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [sourceDocId, setSourceDocId] = useState<string>('');
   const [targetDocId, setTargetDocId] = useState<string>('');
+  const [currentSourcePage, setCurrentSourcePage] = useState<number>(1);
 
   // Load available documents on mount
   useEffect(() => {
@@ -155,9 +156,9 @@ export default function Home() {
       setSourceDocId(newSourceDocId);
       setTargetDocId(newTargetDocId);
 
-      // Load source and target documents
-      setSourceDocument(sourceDoc);
-      setTargetDocument(targetDoc);
+      // Load source and target documents with updated documentIds
+      setSourceDocument({ ...sourceDoc, documentId: newSourceDocId });
+      setTargetDocument({ ...targetDoc, documentId: newTargetDocId });
 
       // Load file data for both documents
       const [sourceData, targetData] = await Promise.all([
@@ -194,10 +195,52 @@ export default function Home() {
     }
   };
 
+  // Handle clicking an alignment (just highlights, doesn't open modal)
   const handleAlignmentSelect = (alignment: Alignment) => {
+    setSelectedAlignment(alignment);
+  };
+
+  // Handle AI Audit button click (opens modal)
+  const handleAuditClick = (alignment: Alignment) => {
     setSelectedAlignment(alignment);
     setShowAuditModal(true);
   };
+
+  // Filter alignments by current source page
+  const filteredAlignments = alignments.filter(alignment => {
+    const sourceAnchor = sourceAnchors.find(a => a.anchorId === alignment.sourceAnchorId);
+    return sourceAnchor && sourceAnchor.page === currentSourcePage;
+  });
+
+  // Get selected source and target anchors for highlighting
+  const selectedSourceAnchors = selectedAlignment
+    ? sourceAnchors.filter(a => a.anchorId === selectedAlignment.sourceAnchorId).slice(0, 1)
+    : [];
+  const selectedTargetAnchors = selectedAlignment
+    ? targetAnchors.filter(a => a.anchorId === selectedAlignment.targetAnchorId).slice(0, 1)
+    : [];
+
+  // Debug logging
+  if (selectedAlignment) {
+    console.log('Selected alignment:', selectedAlignment);
+    console.log('Source anchors to highlight:', selectedSourceAnchors.length, selectedSourceAnchors.map(a => ({ id: a.anchorId, page: a.page, quote: a.quote.substring(0, 50) })));
+    console.log('Target anchors to highlight:', selectedTargetAnchors.length, selectedTargetAnchors.map(a => ({ id: a.anchorId, page: a.page, quote: a.quote.substring(0, 50) })));
+
+    const matchingSource = sourceAnchors.filter(a => a.anchorId === selectedAlignment.sourceAnchorId);
+    const matchingTarget = targetAnchors.filter(a => a.anchorId === selectedAlignment.targetAnchorId);
+
+    if (matchingSource.length > 1) {
+      console.warn(`⚠️ Multiple SOURCE anchors found for anchorId ${selectedAlignment.sourceAnchorId}:`, matchingSource.length);
+    }
+    if (matchingTarget.length > 1) {
+      console.warn(`⚠️ Multiple TARGET anchors found for anchorId ${selectedAlignment.targetAnchorId}:`, matchingTarget.length);
+    }
+  }
+
+  // Get target page to scroll to when alignment is selected
+  const targetScrollToPage = selectedTargetAnchors.length > 0
+    ? selectedTargetAnchors[0].page
+    : undefined;
 
   if (status === "loading") {
     return (
@@ -317,10 +360,14 @@ export default function Home() {
                 alignments={alignments}
                 syncScrollEnabled={syncScrollEnabled}
                 onAlignmentSelect={handleAlignmentSelect}
+                onSourcePageChange={setCurrentSourcePage}
+                selectedSourceAnchors={selectedSourceAnchors}
+                selectedTargetAnchors={selectedTargetAnchors}
+                targetScrollToPage={targetScrollToPage}
               />
               {/* Alignment Panel */}
               <div className="w-80 bg-white border-l overflow-y-auto">
-                <div className="p-3 border-b">
+                <div className="p-3 border-b space-y-2">
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
@@ -329,13 +376,17 @@ export default function Home() {
                     />
                     <span className="text-sm">Sync Scroll</span>
                   </label>
+                  <div className="text-xs text-gray-600">
+                    Viewing page {currentSourcePage} alignments ({filteredAlignments.length} of {alignments.length})
+                  </div>
                 </div>
                 <AlignmentVisualization
-                  alignments={alignments}
+                  alignments={filteredAlignments}
                   sourceAnchors={sourceAnchors}
                   targetAnchors={targetAnchors}
                   onSelect={handleAlignmentSelect}
                   selectedAlignmentId={selectedAlignment?.alignmentId}
+                  onAudit={handleAuditClick}
                 />
               </div>
             </>

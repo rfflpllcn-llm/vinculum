@@ -19,6 +19,10 @@ interface DualDocumentViewProps {
   alignments: Alignment[];
   syncScrollEnabled: boolean;
   onAlignmentSelect?: (alignment: Alignment) => void;
+  onSourcePageChange?: (page: number) => void;
+  selectedSourceAnchors?: Anchor[];
+  selectedTargetAnchors?: Anchor[];
+  targetScrollToPage?: number;
 }
 
 export default function DualDocumentView({
@@ -31,6 +35,10 @@ export default function DualDocumentView({
   alignments,
   syncScrollEnabled,
   onAlignmentSelect,
+  onSourcePageChange,
+  selectedSourceAnchors = [],
+  selectedTargetAnchors = [],
+  targetScrollToPage,
 }: DualDocumentViewProps) {
   // Use sync scroll hook
   const { handleSourceScroll, targetScrollPosition } = useSyncScroll({
@@ -39,6 +47,11 @@ export default function DualDocumentView({
     alignments,
     enabled: syncScrollEnabled,
   });
+
+  // Override target scroll position if we have a specific page to scroll to
+  const effectiveTargetScrollPosition = targetScrollToPage
+    ? { page: targetScrollToPage, offsetY: 0, normalizedY: 0 }
+    : targetScrollPosition;
 
   return (
     <div className="flex h-full">
@@ -53,7 +66,9 @@ export default function DualDocumentView({
           fileData={sourceFileData}
           onScroll={handleSourceScroll}
           readOnly={true}
-          highlightedAnchors={sourceAnchors}
+          highlightedAnchors={[]}
+          selectedAnchors={selectedSourceAnchors}
+          onPageChange={onSourcePageChange}
         />
       </div>
 
@@ -66,9 +81,10 @@ export default function DualDocumentView({
         <PDFViewer
           document={targetDocument}
           fileData={targetFileData}
-          externalScrollPosition={targetScrollPosition || undefined}
+          externalScrollPosition={effectiveTargetScrollPosition || undefined}
           readOnly={true}
-          highlightedAnchors={targetAnchors}
+          highlightedAnchors={[]}
+          selectedAnchors={selectedTargetAnchors}
         />
       </div>
     </div>
