@@ -53,20 +53,21 @@ export async function POST(request: NextRequest) {
     const sourceBuffer = await drive.downloadFile(sourceDriveFileId);
     const targetBuffer = await drive.downloadFile(targetDriveFileId);
 
-    // Disable workers for Node.js environment
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+    // Configure worker for Node.js (use legacy worker)
+    const path = await import('path');
+    const workerPath = path.resolve(
+      process.cwd(),
+      'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'
+    );
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerPath;
 
-    // Load PDFs with pdfjs (disable worker for server-side)
+    // Load PDFs with pdfjs
     const sourcePDF = await pdfjsLib.getDocument({
       data: sourceBuffer,
-      useWorkerFetch: false,
-      isEvalSupported: false,
       useSystemFonts: true,
     }).promise;
     const targetPDF = await pdfjsLib.getDocument({
       data: targetBuffer,
-      useWorkerFetch: false,
-      isEvalSupported: false,
       useSystemFonts: true,
     }).promise;
 
