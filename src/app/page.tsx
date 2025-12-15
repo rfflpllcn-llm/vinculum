@@ -10,6 +10,7 @@ import DualDocumentView from "@/components/DualDocumentView";
 import ViewModeToggle from "@/components/ViewModeToggle";
 import AlignmentVisualization from "@/components/AlignmentVisualization";
 import AIAuditModal from "@/components/AIAuditModal";
+import AlignmentUploadPanel from "@/components/AlignmentUploadPanel";
 import { Document, NormalizedRect, Anchor, ViewMode, Alignment } from "@/types/schemas";
 import { generateUUID } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export default function Home() {
 
   // Dual view state
   const [viewMode, setViewMode] = useState<ViewMode>('single');
+  const [availableDocuments, setAvailableDocuments] = useState<Document[]>([]);
   const [sourceDocument, setSourceDocument] = useState<Document | null>(null);
   const [targetDocument, setTargetDocument] = useState<Document | null>(null);
   const [sourceFileData, setSourceFileData] = useState<ArrayBuffer | null>(null);
@@ -37,6 +39,25 @@ export default function Home() {
   const [syncScrollEnabled, setSyncScrollEnabled] = useState(true);
   const [selectedAlignment, setSelectedAlignment] = useState<Alignment | null>(null);
   const [showAuditModal, setShowAuditModal] = useState(false);
+  const [sourceDocId, setSourceDocId] = useState<string>('');
+  const [targetDocId, setTargetDocId] = useState<string>('');
+
+  // Load available documents on mount
+  useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        const response = await fetch('/api/documents');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableDocuments(data.documents || []);
+        }
+      } catch (error) {
+        console.error('Error loading documents:', error);
+      }
+    };
+
+    loadDocuments();
+  }, []);
 
   // Load file data when document is selected
   useEffect(() => {
@@ -108,11 +129,15 @@ export default function Home() {
     targetDoc: Document
   ) => {
     try {
+      // Generate persistent document IDs
+      const newSourceDocId = generateUUID();
+      const newTargetDocId = generateUUID();
+
       const formData = new FormData();
       formData.append('chunksFile', chunksFile);
       formData.append('alignmentsFile', alignmentsFile);
-      formData.append('sourceDocId', generateUUID());
-      formData.append('targetDocId', generateUUID());
+      formData.append('sourceDocId', newSourceDocId);
+      formData.append('targetDocId', newTargetDocId);
       formData.append('sourceDriveFileId', sourceDoc.driveFileId);
       formData.append('targetDriveFileId', targetDoc.driveFileId);
 
@@ -125,14 +150,47 @@ export default function Home() {
 
       const result = await response.json();
       console.log('Alignment upload result:', result);
-      alert(`Uploaded ${result.alignmentsCount} alignments successfully!`);
 
-      // Load the alignments
-      // TODO: Implement loading logic
+      // Store document IDs
+      setSourceDocId(newSourceDocId);
+      setTargetDocId(newTargetDocId);
 
+      // Load source and target documents
+      setSourceDocument(sourceDoc);
+      setTargetDocument(targetDoc);
+
+      // Load file data for both documents
+      const [sourceData, targetData] = await Promise.all([
+        fetch(`/api/documents/${sourceDoc.driveFileId}`).then(r => r.arrayBuffer()),
+        fetch(`/api/documents/${targetDoc.driveFileId}`).then(r => r.arrayBuffer()),
+      ]);
+
+      setSourceFileData(sourceData);
+      setTargetFileData(targetData);
+
+      // Load anchors from Drive
+      const [sourceAnchorsData, targetAnchorsData] = await Promise.all([
+        fetch(`/api/anchors?documentId=${newSourceDocId}`).then(r => r.json()),
+        fetch(`/api/anchors?documentId=${newTargetDocId}`).then(r => r.json()),
+      ]);
+
+      setSourceAnchors(sourceAnchorsData.anchors || []);
+      setTargetAnchors(targetAnchorsData.anchors || []);
+
+      // Load alignments
+      const alignmentsResponse = await fetch(
+        `/api/alignments?sourceDocId=${newSourceDocId}&targetDocId=${newTargetDocId}`
+      );
+      const alignmentsData = await alignmentsResponse.json();
+      setAlignments(alignmentsData.alignments || []);
+
+      alert(
+        `Loaded ${result.sourceAnchorsCount} source anchors, ${result.targetAnchorsCount} target anchors, and ${result.alignmentsCount} alignments!`
+      );
     } catch (error) {
       console.error('Error uploading alignments:', error);
-      alert('Failed to upload alignments');
+      alert('Failed to upload alignments: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      throw error;
     }
   };
 
@@ -283,15 +341,10 @@ export default function Home() {
             </>
           ) : (
             <div className="flex items-center justify-center w-full">
-              <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Dual View Mode</h2>
-                <p className="text-gray-600 mb-4">
-                  Upload alignment files to view documents side-by-side
-                </p>
-                <p className="text-sm text-gray-500">
-                  Use the Library to select source and target documents, then upload JSONL files
-                </p>
-              </div>
+              <AlignmentUploadPanel
+                documents={availableDocuments}
+                onUpload={handleAlignmentUpload}
+              />
             </div>
           )
         )}
