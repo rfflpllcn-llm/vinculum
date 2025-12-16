@@ -11,6 +11,7 @@ import ViewModeToggle from "@/components/ViewModeToggle";
 import AlignmentVisualization from "@/components/AlignmentVisualization";
 import AIAuditModal from "@/components/AIAuditModal";
 import AlignmentUploadPanel from "@/components/AlignmentUploadPanel";
+import SearchPanel from "@/components/SearchPanel";
 import { Document, NormalizedRect, Anchor, ViewMode, Alignment } from "@/types/schemas";
 import { generateUUID } from "@/lib/utils";
 
@@ -42,6 +43,10 @@ export default function Home() {
   const [sourceDocId, setSourceDocId] = useState<string>('');
   const [targetDocId, setTargetDocId] = useState<string>('');
   const [currentSourcePage, setCurrentSourcePage] = useState<number>(1);
+  const [currentTargetPage, setCurrentTargetPage] = useState<number>(1);
+  const [chunkMap, setChunkMap] = useState<Map<number, any>>(new Map());
+  const [requestedSourcePage, setRequestedSourcePage] = useState<number | undefined>(undefined);
+  const [requestedTargetPage, setRequestedTargetPage] = useState<number | undefined>(undefined);
 
   // Load available documents on mount
   useEffect(() => {
@@ -185,6 +190,16 @@ export default function Home() {
       const alignmentsData = await alignmentsResponse.json();
       setAlignments(alignmentsData.alignments || []);
 
+      // Parse chunks file locally for search functionality
+      const { parseJSONL } = await import('@/lib/alignmentParser');
+      const chunks = await parseJSONL(chunksFile);
+      const newChunkMap = new Map();
+      chunks.forEach((chunk: any) => {
+        newChunkMap.set(chunk.chunk_id, chunk);
+      });
+      setChunkMap(newChunkMap);
+      console.log(`Loaded ${newChunkMap.size} chunks for search`);
+
       alert(
         `Loaded ${result.sourceAnchorsCount} source anchors, ${result.targetAnchorsCount} target anchors, and ${result.alignmentsCount} alignments!`
       );
@@ -204,6 +219,23 @@ export default function Home() {
   const handleAuditClick = (alignment: Alignment) => {
     setSelectedAlignment(alignment);
     setShowAuditModal(true);
+  };
+
+  // Handle search navigation
+  const handleSearchNavigate = (page: number, lang: string, rowNumber?: number) => {
+    // Determine which document based on language
+    const sourceLang = sourceDocument?.filename.includes('en') ? 'en' : (sourceDocument?.filename.match(/[a-z]{2}/))?.[0];
+    const targetLang = targetDocument?.filename.includes('it') ? 'it' : (targetDocument?.filename.match(/[a-z]{2}/))?.[0];
+
+    if (lang === sourceLang) {
+      setRequestedSourcePage(page);
+      setCurrentSourcePage(page); // Also update current page for alignment filtering
+    } else if (lang === targetLang) {
+      setRequestedTargetPage(page);
+      setCurrentTargetPage(page); // Also update current page
+    }
+
+    console.log(`Navigating to page ${page} in ${lang} language${rowNumber ? `, line ${rowNumber}` : ''}`);
   };
 
   // Filter alignments by current source page
@@ -238,9 +270,24 @@ export default function Home() {
   }
 
   // Get target page to scroll to when alignment is selected
-  const targetScrollToPage = selectedTargetAnchors.length > 0
+  const alignmentTargetPage = selectedTargetAnchors.length > 0
     ? selectedTargetAnchors[0].page
     : undefined;
+
+  // Clear navigation requests after they've been used
+  useEffect(() => {
+    if (requestedSourcePage !== undefined) {
+      const timer = setTimeout(() => setRequestedSourcePage(undefined), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [requestedSourcePage]);
+
+  useEffect(() => {
+    if (requestedTargetPage !== undefined) {
+      const timer = setTimeout(() => setRequestedTargetPage(undefined), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [requestedTargetPage]);
 
   if (status === "loading") {
     return (
@@ -363,8 +410,24 @@ export default function Home() {
                 onSourcePageChange={setCurrentSourcePage}
                 selectedSourceAnchors={selectedSourceAnchors}
                 selectedTargetAnchors={selectedTargetAnchors}
-                targetScrollToPage={targetScrollToPage}
+                sourceScrollToPage={requestedSourcePage}
+                targetScrollToPage={requestedTargetPage !== undefined ? requestedTargetPage : alignmentTargetPage}
               />
+              {/* Search Panel */}
+              <div className="w-80 bg-white border-l overflow-hidden flex flex-col">
+                <div className="p-2 border-b bg-gray-100">
+                  <h3 className="text-sm font-semibold text-gray-700">Search</h3>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <SearchPanel
+                    chunkMap={chunkMap}
+                    sourceAnchors={sourceAnchors}
+                    targetAnchors={targetAnchors}
+                    onNavigate={handleSearchNavigate}
+                  />
+                </div>
+              </div>
+
               {/* Alignment Panel */}
               <div className="w-80 bg-white border-l overflow-y-auto">
                 <div className="p-3 border-b space-y-2">

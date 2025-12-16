@@ -22,6 +22,7 @@ interface DualDocumentViewProps {
   onSourcePageChange?: (page: number) => void;
   selectedSourceAnchors?: Anchor[];
   selectedTargetAnchors?: Anchor[];
+  sourceScrollToPage?: number;
   targetScrollToPage?: number;
 }
 
@@ -38,6 +39,7 @@ export default function DualDocumentView({
   onSourcePageChange,
   selectedSourceAnchors = [],
   selectedTargetAnchors = [],
+  sourceScrollToPage,
   targetScrollToPage,
 }: DualDocumentViewProps) {
   // Use sync scroll hook
@@ -47,6 +49,11 @@ export default function DualDocumentView({
     alignments,
     enabled: syncScrollEnabled,
   });
+
+  // Override source scroll position if we have a specific page to scroll to
+  const effectiveSourceScrollPosition = sourceScrollToPage
+    ? { page: sourceScrollToPage, offsetY: 0, normalizedY: 0 }
+    : undefined;
 
   // Override target scroll position if we have a specific page to scroll to
   const effectiveTargetScrollPosition = targetScrollToPage
@@ -65,6 +72,7 @@ export default function DualDocumentView({
           document={sourceDocument}
           fileData={sourceFileData}
           onScroll={handleSourceScroll}
+          externalScrollPosition={effectiveSourceScrollPosition}
           readOnly={true}
           highlightedAnchors={[]}
           selectedAnchors={selectedSourceAnchors}
