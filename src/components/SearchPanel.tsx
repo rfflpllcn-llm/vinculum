@@ -89,7 +89,7 @@ export default function SearchPanel({
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {/* Search Input */}
       <div className="p-3 border-b flex-shrink-0">
         <input
@@ -116,7 +116,7 @@ export default function SearchPanel({
       </div>
 
       {/* Search Results */}
-      <div>
+      <div className="flex-1 overflow-y-auto min-h-0">
         {displayedResults.map((result) => (
           <div
             key={result.chunkId}
