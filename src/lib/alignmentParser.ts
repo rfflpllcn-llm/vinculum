@@ -48,7 +48,7 @@ function asIntPage(page: any): number | null {
 }
 
 /**
- * Build a map from chunk_id to its sequential row_number within its page
+ * Build a map from chunk_id to its sequential row_number within its page and language
  * This ensures accurate row numbering regardless of chunk_id gaps
  */
 function computeChunkRowNumbers(
@@ -56,20 +56,22 @@ function computeChunkRowNumbers(
 ): Map<number, number> {
   const chunkIdToRowNumber = new Map<number, number>();
 
-  // Group chunks by page
-  const chunksByPage = new Map<number, LanguageChunk[]>();
+  // Group chunks by page AND language
+  const chunksByPageAndLang = new Map<string, LanguageChunk[]>();
   for (const chunk of chunks) {
     const pageInt = asIntPage(chunk.page);
     if (pageInt == null) continue;
 
-    if (!chunksByPage.has(pageInt)) {
-      chunksByPage.set(pageInt, []);
+    // Create composite key: "page:language"
+    const key = `${pageInt}:${chunk.language}`;
+    if (!chunksByPageAndLang.has(key)) {
+      chunksByPageAndLang.set(key, []);
     }
-    chunksByPage.get(pageInt)!.push(chunk);
+    chunksByPageAndLang.get(key)!.push(chunk);
   }
 
-  // For each page, sort chunks by chunk_id and assign sequential row numbers
-  for (const [page, pageChunks] of chunksByPage.entries()) {
+  // For each page+language combination, sort chunks by chunk_id and assign sequential row numbers
+  for (const [key, pageChunks] of chunksByPageAndLang.entries()) {
     // Sort by chunk_id to get correct order
     pageChunks.sort((a, b) => a.chunk_id - b.chunk_id);
 
