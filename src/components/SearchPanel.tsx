@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 interface SearchResult {
   chunkId: number;
@@ -17,17 +17,35 @@ interface SearchPanelProps {
   onNavigate: (page: number, lang: string, rowNumber?: number) => void;
 }
 
+const RESULTS_PER_PAGE = 20;
+const DEBOUNCE_MS = 300;
+
 export default function SearchPanel({
   chunkMap,
   sourceAnchors,
   targetAnchors,
   onNavigate,
 }: SearchPanelProps) {
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedResult, setSelectedResult] = useState<number | null>(null);
+  const [displayLimit, setDisplayLimit] = useState(RESULTS_PER_PAGE);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Search through chunks
-  const searchResults = useMemo(() => {
+  // Debounce search query
+  useEffect(() => {
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setDisplayLimit(RESULTS_PER_PAGE); // Reset pagination on new search
+      setIsSearching(false);
+    }, DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Search through chunks (find all matches)
+  const allSearchResults = useMemo(() => {
     if (!searchQuery.trim() || chunkMap.size === 0) return [];
 
     const query = searchQuery.toLowerCase();
@@ -52,10 +70,22 @@ export default function SearchPanel({
     return results;
   }, [searchQuery, chunkMap, sourceAnchors, targetAnchors]);
 
+  // Paginated results (only show first N)
+  const displayedResults = useMemo(() => {
+    return allSearchResults.slice(0, displayLimit);
+  }, [allSearchResults, displayLimit]);
+
+  const hasMoreResults = allSearchResults.length > displayLimit;
+  const remainingCount = allSearchResults.length - displayLimit;
+
   const handleResultClick = (result: SearchResult) => {
     setSelectedResult(result.chunkId);
     const pageNum = parseInt(result.page, 10);
     onNavigate(pageNum, result.language, result.rowNumber);
+  };
+
+  const handleLoadMore = () => {
+    setDisplayLimit(prev => prev + RESULTS_PER_PAGE);
   };
 
   return (
@@ -64,21 +94,30 @@ export default function SearchPanel({
       <div className="p-3 border-b">
         <input
           type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search in chunks..."
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        {searchQuery && (
+        {searchInput && (
           <div className="mt-2 text-xs text-gray-600">
-            {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
+            {isSearching ? (
+              <span className="text-gray-400">Searching...</span>
+            ) : (
+              <>
+                {allSearchResults.length} result{allSearchResults.length !== 1 ? 's' : ''} found
+                {displayedResults.length < allSearchResults.length && (
+                  <span className="text-gray-500"> (showing {displayedResults.length})</span>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
 
       {/* Search Results */}
       <div className="flex-1 overflow-y-auto">
-        {searchResults.map((result) => (
+        {displayedResults.map((result) => (
           <div
             key={result.chunkId}
             onClick={() => handleResultClick(result)}
@@ -98,7 +137,20 @@ export default function SearchPanel({
           </div>
         ))}
 
-        {searchQuery && searchResults.length === 0 && (
+        {/* Load More Button */}
+        {hasMoreResults && (
+          <div className="p-3 border-b">
+            <button
+              onClick={handleLoadMore}
+              className="w-full px-4 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md border border-blue-300 font-medium"
+            >
+              Load {Math.min(remainingCount, RESULTS_PER_PAGE)} more result{Math.min(remainingCount, RESULTS_PER_PAGE) !== 1 ? 's' : ''}
+              <span className="text-gray-500 ml-1">({remainingCount} remaining)</span>
+            </button>
+          </div>
+        )}
+
+        {searchQuery && allSearchResults.length === 0 && !isSearching && (
           <div className="p-4 text-center text-gray-500 text-sm">
             No results found for &ldquo;{searchQuery}&rdquo;
           </div>

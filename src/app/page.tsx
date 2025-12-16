@@ -538,11 +538,11 @@ export default function Home() {
                 targetScrollToPage={requestedTargetPage !== undefined ? requestedTargetPage : alignmentTargetPage}
               />
               {/* Search Panel */}
-              <div className="w-80 bg-white border-l overflow-hidden flex flex-col">
-                <div className="p-2 border-b bg-gray-100">
+              <div className="w-80 bg-white border-l overflow-y-auto flex flex-col">
+                <div className="p-2 border-b bg-gray-100 flex-shrink-0">
                   <h3 className="text-sm font-semibold text-gray-700">Search</h3>
                 </div>
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 min-h-0">
                   <SearchPanel
                     chunkMap={chunkMap}
                     sourceAnchors={sourceAnchors}
