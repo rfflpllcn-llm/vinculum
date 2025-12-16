@@ -48,50 +48,38 @@ function asIntPage(page: any): number | null {
 }
 
 /**
- * Precompute the maximum chunk_id for each page
- * Used to derive row_number for chunks
+ * Build a map from chunk_id to its sequential row_number within its page
+ * This ensures accurate row numbering regardless of chunk_id gaps
  */
-function computeLastChunkIdByPage(
-  pairs: AlignmentPair[],
-  chunkKey: 'src_chunks' | 'tgt_chunks'
+function computeChunkRowNumbers(
+  chunks: LanguageChunk[]
 ): Map<number, number> {
-  const lastByPage = new Map<number, number>();
+  const chunkIdToRowNumber = new Map<number, number>();
 
-  for (const pair of pairs) {
-    const chunks = pair[chunkKey] || [];
-    for (const item of chunks) {
-      const chunk = typeof item === 'number' ? null : item;
-      if (!chunk) continue;
+  // Group chunks by page
+  const chunksByPage = new Map<number, LanguageChunk[]>();
+  for (const chunk of chunks) {
+    const pageInt = asIntPage(chunk.page);
+    if (pageInt == null) continue;
 
-      const pageInt = asIntPage(chunk.page);
-      if (pageInt == null) continue;
-
-      const chunkId = chunk.chunk_id;
-      const prev = lastByPage.get(pageInt);
-      if (prev == null || chunkId > prev) {
-        lastByPage.set(pageInt, chunkId);
-      }
+    if (!chunksByPage.has(pageInt)) {
+      chunksByPage.set(pageInt, []);
     }
+    chunksByPage.get(pageInt)!.push(chunk);
   }
 
-  return lastByPage;
-}
+  // For each page, sort chunks by chunk_id and assign sequential row numbers
+  for (const [page, pageChunks] of chunksByPage.entries()) {
+    // Sort by chunk_id to get correct order
+    pageChunks.sort((a, b) => a.chunk_id - b.chunk_id);
 
-/**
- * Compute row_number for a chunk
- * row_number = min(chunk_ids) - last_chunk_id_of_prev_page
- */
-function computeRowNumber(
-  chunkIds: number[],
-  page: number,
-  lastByPage: Map<number, number>
-): number | null {
-  if (chunkIds.length === 0) return null;
+    // Assign sequential row numbers starting from 1
+    pageChunks.forEach((chunk, index) => {
+      chunkIdToRowNumber.set(chunk.chunk_id, index + 1);
+    });
+  }
 
-  const minChunkId = Math.min(...chunkIds);
-  const prevPageLastChunkId = lastByPage.get(page - 1) ?? -1;
-
-  return minChunkId - prevPageLastChunkId;
+  return chunkIdToRowNumber;
 }
 
 /**
@@ -127,10 +115,9 @@ export async function parseAlignmentFiles(
   const targetLang = pairs[0]?.tgt_lang || 'it';
   console.log(`Source language: ${sourceLang}, Target language: ${targetLang}`);
 
-  // Step 4: Precompute per-page max chunk_id for both languages
-  const lastByPageSrc = computeLastChunkIdByPage(pairs, 'src_chunks');
-  const lastByPageTgt = computeLastChunkIdByPage(pairs, 'tgt_chunks');
-  console.log(`Precomputed chunk maxima for ${lastByPageSrc.size} source pages, ${lastByPageTgt.size} target pages`);
+  // Step 4: Compute row numbers for all chunks (sequential position within each page)
+  const chunkIdToRowNumber = computeChunkRowNumbers(chunks);
+  console.log(`Computed row numbers for ${chunkIdToRowNumber.size} chunks`);
 
   // Step 5: Collect all chunk IDs referenced in alignments
   const referencedChunkIds = new Set<number>();
@@ -166,9 +153,11 @@ export async function parseAlignmentFiles(
     const isSourceChunk = chunk.language === sourceLang;
     const documentId = isSourceChunk ? sourceDocumentId : targetDocumentId;
     const pdfDoc = isSourceChunk ? sourcePDF : targetPDF;
-    const lastByPage = isSourceChunk ? lastByPageSrc : lastByPageTgt;
 
-    const anchor = await chunkToAnchor(chunk, documentId, pdfDoc, lastByPage);
+    // Get row number from precomputed map
+    const rowNumber = chunkIdToRowNumber.get(chunk.chunk_id) ?? undefined;
+
+    const anchor = await chunkToAnchor(chunk, documentId, pdfDoc, rowNumber);
 
     if (isSourceChunk) {
       sourceAnchors.push(anchor);
@@ -236,19 +225,16 @@ export async function parseAlignmentFiles(
  * @param chunk - Language chunk from JSONL
  * @param documentId - Document UUID
  * @param pdfDoc - PDF document for page dimensions
- * @param lastByPage - Map of page number to last chunk_id on that page
+ * @param rowNumber - Sequential row number within the page (1-based)
  * @returns Anchor with rect coordinates and row_number
  */
 async function chunkToAnchor(
   chunk: LanguageChunk,
   documentId: UUID,
   pdfDoc: pdfjsLib.PDFDocumentProxy,
-  lastByPage: Map<number, number>
+  rowNumber: number | undefined
 ): Promise<Anchor> {
   const page = parseInt(chunk.page, 10);
-
-  // Compute row_number for this chunk
-  const rowNumber = computeRowNumber([chunk.chunk_id], page, lastByPage);
 
   // Use placeholder rect - frontend will compute actual position based on row_number
   // We use a small height placeholder at the top of the page
@@ -266,7 +252,7 @@ async function chunkToAnchor(
     rect,
     quote: chunk.text,
     quoteHash: computeQuoteHash(chunk.text),
-    rowNumber: rowNumber ?? undefined,
+    rowNumber,
     createdAt: getCurrentTimestamp(),
   };
 }

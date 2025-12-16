@@ -376,6 +376,15 @@ export default function Home() {
     ? targetAnchors.filter(a => a.anchorId === selectedAlignment.targetAnchorId).slice(0, 1)
     : [];
 
+  // Debug logging for search highlight
+  if (searchHighlightAnchor) {
+    console.log('Search highlight anchor:', searchHighlightAnchor);
+    console.log('Is in sourceAnchors?', sourceAnchors.includes(searchHighlightAnchor));
+    console.log('Is in targetAnchors?', targetAnchors.includes(searchHighlightAnchor));
+    console.log('Selected source anchors:', selectedSourceAnchors);
+    console.log('Selected target anchors:', selectedTargetAnchors);
+  }
+
   // Debug logging
   if (selectedAlignment) {
     console.log('Selected alignment:', selectedAlignment);
