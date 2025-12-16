@@ -17,8 +17,8 @@ interface SearchPanelProps {
   onNavigate: (page: number, lang: string, rowNumber?: number) => void;
 }
 
-const RESULTS_PER_PAGE = 20;
-const DEBOUNCE_MS = 300;
+const RESULTS_PER_PAGE = 10;
+const DEBOUNCE_MS = 500;
 
 export default function SearchPanel({
   chunkMap,
@@ -89,9 +89,9 @@ export default function SearchPanel({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Search Input */}
-      <div className="p-3 border-b">
+      <div className="p-3 border-b flex-shrink-0">
         <input
           type="text"
           value={searchInput}
@@ -116,7 +116,7 @@ export default function SearchPanel({
       </div>
 
       {/* Search Results */}
-      <div className="flex-1 overflow-y-auto">
+      <div>
         {displayedResults.map((result) => (
           <div
             key={result.chunkId}
