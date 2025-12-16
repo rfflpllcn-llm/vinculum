@@ -258,12 +258,16 @@ export default function Home() {
   // Handle clicking an alignment (just highlights, doesn't open modal)
   const handleAlignmentSelect = (alignment: Alignment) => {
     setSelectedAlignment(alignment);
+    // Clear search highlight when selecting an alignment
+    setSearchHighlightAnchor(null);
   };
 
   // Handle AI Audit button click (opens modal)
   const handleAuditClick = (alignment: Alignment) => {
     setSelectedAlignment(alignment);
     setShowAuditModal(true);
+    // Clear search highlight when auditing an alignment
+    setSearchHighlightAnchor(null);
   };
 
   // Handle search navigation
