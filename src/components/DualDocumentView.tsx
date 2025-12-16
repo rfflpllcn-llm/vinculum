@@ -60,6 +60,20 @@ export default function DualDocumentView({
     ? { page: targetScrollToPage, offsetY: 0, normalizedY: 0 }
     : targetScrollPosition;
 
+  // Debug logging
+  if (sourceScrollToPage !== undefined) {
+    console.log(`DualDocumentView: sourceScrollToPage = ${sourceScrollToPage}`);
+  }
+  if (targetScrollToPage !== undefined) {
+    console.log(`DualDocumentView: targetScrollToPage = ${targetScrollToPage}`);
+  }
+  if (effectiveSourceScrollPosition) {
+    console.log('DualDocumentView: effectiveSourceScrollPosition =', effectiveSourceScrollPosition);
+  }
+  if (effectiveTargetScrollPosition) {
+    console.log('DualDocumentView: effectiveTargetScrollPosition =', effectiveTargetScrollPosition);
+  }
+
   return (
     <div className="flex h-full">
       {/* Source PDF (left) */}

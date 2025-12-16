@@ -156,20 +156,40 @@ export default function PDFViewer({
     const container = containerRef.current;
     if (!container || !externalScrollPosition) return;
 
+    console.log('PDFViewer: externalScrollPosition received:', externalScrollPosition);
+    console.log('PDFViewer: currentPage:', currentPage);
+
     // Update current page if needed
     if (externalScrollPosition.page !== currentPage) {
+      console.log(`PDFViewer: Changing page from ${currentPage} to ${externalScrollPosition.page}`);
       setCurrentPage(externalScrollPosition.page);
+
+      // Scroll will happen after page render completes
+      // Give the new page time to render before scrolling
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const scrollHeight = container.scrollHeight;
+          const targetScrollTop = externalScrollPosition.normalizedY * scrollHeight;
+          console.log(`PDFViewer: Scrolling to ${targetScrollTop} (normalizedY: ${externalScrollPosition.normalizedY})`);
+
+          container.scrollTo({
+            top: targetScrollTop,
+            behavior: 'smooth',
+          });
+        });
+      });
+    } else {
+      // Same page, just scroll
+      const scrollHeight = container.scrollHeight;
+      const targetScrollTop = externalScrollPosition.normalizedY * scrollHeight;
+      console.log(`PDFViewer: Same page scroll to ${targetScrollTop}`);
+
+      container.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth',
+      });
     }
-
-    // Scroll to position
-    const scrollHeight = container.scrollHeight;
-    const targetScrollTop = externalScrollPosition.normalizedY * scrollHeight;
-
-    container.scrollTo({
-      top: targetScrollTop,
-      behavior: 'smooth',
-    });
-  }, [externalScrollPosition, currentPage]);
+  }, [externalScrollPosition]);
 
   // Handle mouse events for selection
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {

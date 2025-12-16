@@ -47,6 +47,7 @@ export default function Home() {
   const [chunkMap, setChunkMap] = useState<Map<number, any>>(new Map());
   const [requestedSourcePage, setRequestedSourcePage] = useState<number | undefined>(undefined);
   const [requestedTargetPage, setRequestedTargetPage] = useState<number | undefined>(undefined);
+  const [searchHighlightAnchor, setSearchHighlightAnchor] = useState<Anchor | null>(null);
 
   // Load available documents on mount
   useEffect(() => {
@@ -223,19 +224,93 @@ export default function Home() {
 
   // Handle search navigation
   const handleSearchNavigate = (page: number, lang: string, rowNumber?: number) => {
-    // Determine which document based on language
-    const sourceLang = sourceDocument?.filename.includes('en') ? 'en' : (sourceDocument?.filename.match(/[a-z]{2}/))?.[0];
-    const targetLang = targetDocument?.filename.includes('it') ? 'it' : (targetDocument?.filename.match(/[a-z]{2}/))?.[0];
+    console.log(`Search navigate called: page=${page}, lang=${lang}, rowNumber=${rowNumber}`);
+    console.log(`Source doc: ${sourceDocument?.filename}`);
+    console.log(`Target doc: ${targetDocument?.filename}`);
 
-    if (lang === sourceLang) {
+    // Determine which document based on language
+    // Check both exact match and substring match for robustness
+    const sourceLangMatch = sourceDocument?.filename.toLowerCase().includes(lang.toLowerCase());
+    const targetLangMatch = targetDocument?.filename.toLowerCase().includes(lang.toLowerCase());
+
+    console.log(`Language match - source: ${sourceLangMatch}, target: ${targetLangMatch}`);
+
+    // Find the anchor on that page with the matching rowNumber
+    let anchor: Anchor | null = null;
+
+    if (sourceLangMatch) {
+      console.log(`Setting source page to ${page}`);
+      // Find the source anchor at this page and row number
+      anchor = sourceAnchors.find(a => a.page === page && a.rowNumber === rowNumber) || null;
+      console.log(`Found source anchor:`, anchor);
+
       setRequestedSourcePage(page);
       setCurrentSourcePage(page); // Also update current page for alignment filtering
-    } else if (lang === targetLang) {
+      setSearchHighlightAnchor(anchor);
+
+      // Find the alignment containing this source anchor and navigate target to it
+      if (anchor) {
+        const alignment = alignments.find(al => al.sourceAnchorId === anchor.anchorId);
+        if (alignment) {
+          console.log(`Found alignment:`, alignment);
+          const targetAnchor = targetAnchors.find(a => a.anchorId === alignment.targetAnchorId);
+          if (targetAnchor) {
+            console.log(`Navigating target to page ${targetAnchor.page}`);
+            setRequestedTargetPage(targetAnchor.page);
+            setCurrentTargetPage(targetAnchor.page);
+            // Select the alignment to show the connection
+            setSelectedAlignment(alignment);
+          } else {
+            console.warn(`Target anchor not found for alignment`);
+            // Clear any selected alignment since we're doing a search navigation
+            setSelectedAlignment(null);
+          }
+        } else {
+          console.log(`No alignment found for this source anchor`);
+          // Clear any selected alignment since we're doing a search navigation
+          setSelectedAlignment(null);
+        }
+      } else {
+        setSelectedAlignment(null);
+      }
+    } else if (targetLangMatch) {
+      console.log(`Setting target page to ${page}`);
+      // Find the target anchor at this page and row number
+      anchor = targetAnchors.find(a => a.page === page && a.rowNumber === rowNumber) || null;
+      console.log(`Found target anchor:`, anchor);
+
       setRequestedTargetPage(page);
       setCurrentTargetPage(page); // Also update current page
-    }
+      setSearchHighlightAnchor(anchor);
 
-    console.log(`Navigating to page ${page} in ${lang} language${rowNumber ? `, line ${rowNumber}` : ''}`);
+      // Find the alignment containing this target anchor and navigate source to it
+      if (anchor) {
+        const alignment = alignments.find(al => al.targetAnchorId === anchor.anchorId);
+        if (alignment) {
+          console.log(`Found alignment:`, alignment);
+          const sourceAnchor = sourceAnchors.find(a => a.anchorId === alignment.sourceAnchorId);
+          if (sourceAnchor) {
+            console.log(`Navigating source to page ${sourceAnchor.page}`);
+            setRequestedSourcePage(sourceAnchor.page);
+            setCurrentSourcePage(sourceAnchor.page);
+            // Select the alignment to show the connection
+            setSelectedAlignment(alignment);
+          } else {
+            console.warn(`Source anchor not found for alignment`);
+            // Clear any selected alignment since we're doing a search navigation
+            setSelectedAlignment(null);
+          }
+        } else {
+          console.log(`No alignment found for this target anchor`);
+          // Clear any selected alignment since we're doing a search navigation
+          setSelectedAlignment(null);
+        }
+      } else {
+        setSelectedAlignment(null);
+      }
+    } else {
+      console.warn(`Could not match language "${lang}" to either document`);
+    }
   };
 
   // Filter alignments by current source page
@@ -245,10 +320,15 @@ export default function Home() {
   });
 
   // Get selected source and target anchors for highlighting
-  const selectedSourceAnchors = selectedAlignment
+  // Priority: search highlight > alignment selection
+  const selectedSourceAnchors = searchHighlightAnchor && sourceAnchors.includes(searchHighlightAnchor)
+    ? [searchHighlightAnchor]
+    : selectedAlignment
     ? sourceAnchors.filter(a => a.anchorId === selectedAlignment.sourceAnchorId).slice(0, 1)
     : [];
-  const selectedTargetAnchors = selectedAlignment
+  const selectedTargetAnchors = searchHighlightAnchor && targetAnchors.includes(searchHighlightAnchor)
+    ? [searchHighlightAnchor]
+    : selectedAlignment
     ? targetAnchors.filter(a => a.anchorId === selectedAlignment.targetAnchorId).slice(0, 1)
     : [];
 
