@@ -52,6 +52,7 @@ export interface Anchor {
   rect: NormalizedRect;
   quote: string;
   quoteHash: string; // sha256
+  rowNumber?: number; // Line number within page (1-indexed), derived from chunk order in alignments
   createdAt: string; // ISO-8601
 }
 

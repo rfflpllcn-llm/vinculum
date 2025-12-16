@@ -10,7 +10,6 @@ import {
   NormalizedRect,
 } from "@/types/schemas";
 import { generateUUID, computeQuoteHash, getCurrentTimestamp } from "@/lib/utils";
-import { findTextByEmbedding } from "@/lib/embeddingSearch";
 
 /**
  * Parse JSONL file (one JSON object per line)
@@ -35,13 +34,74 @@ export async function parseJSONL<T>(file: File): Promise<T[]> {
 }
 
 /**
+ * Convert page label like "001" to integer 1
+ */
+function asIntPage(page: any): number | null {
+  if (page == null) return null;
+  const s = String(page).trim();
+  if (!s) return null;
+  try {
+    return parseInt(s, 10);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Precompute the maximum chunk_id for each page
+ * Used to derive row_number for chunks
+ */
+function computeLastChunkIdByPage(
+  pairs: AlignmentPair[],
+  chunkKey: 'src_chunks' | 'tgt_chunks'
+): Map<number, number> {
+  const lastByPage = new Map<number, number>();
+
+  for (const pair of pairs) {
+    const chunks = pair[chunkKey] || [];
+    for (const item of chunks) {
+      const chunk = typeof item === 'number' ? null : item;
+      if (!chunk) continue;
+
+      const pageInt = asIntPage(chunk.page);
+      if (pageInt == null) continue;
+
+      const chunkId = chunk.chunk_id;
+      const prev = lastByPage.get(pageInt);
+      if (prev == null || chunkId > prev) {
+        lastByPage.set(pageInt, chunkId);
+      }
+    }
+  }
+
+  return lastByPage;
+}
+
+/**
+ * Compute row_number for a chunk
+ * row_number = min(chunk_ids) - last_chunk_id_of_prev_page
+ */
+function computeRowNumber(
+  chunkIds: number[],
+  page: number,
+  lastByPage: Map<number, number>
+): number | null {
+  if (chunkIds.length === 0) return null;
+
+  const minChunkId = Math.min(...chunkIds);
+  const prevPageLastChunkId = lastByPage.get(page - 1) ?? -1;
+
+  return minChunkId - prevPageLastChunkId;
+}
+
+/**
  * Parse alignment files and convert to internal schema
  * @param chunksFile - JSONL file with language chunks
  * @param alignmentsFile - JSONL file with alignment pairs
  * @param sourceDocumentId - UUID of source document
  * @param targetDocumentId - UUID of target document
- * @param sourcePDF - Source PDF document (for text search)
- * @param targetPDF - Target PDF document (for text search)
+ * @param sourcePDF - Source PDF document (for fallback rect dimensions)
+ * @param targetPDF - Target PDF document (for fallback rect dimensions)
  * @returns Parsed anchors and alignments
  */
 export async function parseAlignmentFiles(
@@ -67,7 +127,12 @@ export async function parseAlignmentFiles(
   const targetLang = pairs[0]?.tgt_lang || 'it';
   console.log(`Source language: ${sourceLang}, Target language: ${targetLang}`);
 
-  // Step 4: Collect all chunk IDs referenced in alignments
+  // Step 4: Precompute per-page max chunk_id for both languages
+  const lastByPageSrc = computeLastChunkIdByPage(pairs, 'src_chunks');
+  const lastByPageTgt = computeLastChunkIdByPage(pairs, 'tgt_chunks');
+  console.log(`Precomputed chunk maxima for ${lastByPageSrc.size} source pages, ${lastByPageTgt.size} target pages`);
+
+  // Step 5: Collect all chunk IDs referenced in alignments
   const referencedChunkIds = new Set<number>();
   pairs.forEach(pair => {
     const srcChunkIds = pair.src_chunks.map(item =>
@@ -81,7 +146,7 @@ export async function parseAlignmentFiles(
   });
   console.log(`Found ${referencedChunkIds.size} unique chunks referenced in alignments`);
 
-  // Step 5: Build chunk_id → chunk map (only for referenced chunks)
+  // Step 6: Build chunk_id → chunk map (only for referenced chunks)
   const chunkMap = new Map<number, LanguageChunk>();
   chunks.forEach(chunk => {
     if (referencedChunkIds.has(chunk.chunk_id)) {
@@ -89,20 +154,21 @@ export async function parseAlignmentFiles(
     }
   });
 
-  // Step 6: Convert referenced chunks to Anchors
+  // Step 7: Convert referenced chunks to Anchors with row_number
   const sourceAnchors: Anchor[] = [];
   const targetAnchors: Anchor[] = [];
   const chunkToAnchorMap = new Map<number, UUID>();
 
-  console.log('Converting referenced chunks to anchors with text search...');
+  console.log('Converting referenced chunks to anchors with row_number...');
 
   for (const chunk of chunkMap.values()) {
     // Determine which document this chunk belongs to
     const isSourceChunk = chunk.language === sourceLang;
     const documentId = isSourceChunk ? sourceDocumentId : targetDocumentId;
     const pdfDoc = isSourceChunk ? sourcePDF : targetPDF;
+    const lastByPage = isSourceChunk ? lastByPageSrc : lastByPageTgt;
 
-    const anchor = await chunkToAnchor(chunk, documentId, pdfDoc);
+    const anchor = await chunkToAnchor(chunk, documentId, pdfDoc, lastByPage);
 
     if (isSourceChunk) {
       sourceAnchors.push(anchor);
@@ -115,7 +181,7 @@ export async function parseAlignmentFiles(
 
   console.log(`Created ${sourceAnchors.length} source anchors, ${targetAnchors.length} target anchors`);
 
-  // Step 7: Convert alignment pairs to Alignments
+  // Step 8: Convert alignment pairs to Alignments
   const alignments: Alignment[] = [];
 
   for (const pair of pairs) {
@@ -166,38 +232,32 @@ export async function parseAlignmentFiles(
 }
 
 /**
- * Convert language chunk to Anchor with PDF text search
+ * Convert language chunk to Anchor with row_number
  * @param chunk - Language chunk from JSONL
  * @param documentId - Document UUID
- * @param pdfDoc - PDF document for text search
- * @returns Anchor with rect coordinates
+ * @param pdfDoc - PDF document for page dimensions
+ * @param lastByPage - Map of page number to last chunk_id on that page
+ * @returns Anchor with rect coordinates and row_number
  */
 async function chunkToAnchor(
   chunk: LanguageChunk,
   documentId: UUID,
-  pdfDoc: pdfjsLib.PDFDocumentProxy
+  pdfDoc: pdfjsLib.PDFDocumentProxy,
+  lastByPage: Map<number, number>
 ): Promise<Anchor> {
   const page = parseInt(chunk.page, 10);
 
-  // Search for text in PDF using embeddings to get rect
-  let rect: NormalizedRect | null = null;
+  // Compute row_number for this chunk
+  const rowNumber = computeRowNumber([chunk.chunk_id], page, lastByPage);
 
-  try {
-    rect = await findTextByEmbedding(pdfDoc, chunk.text, page);
-  } catch (error) {
-    console.error(`Error searching text for chunk ${chunk.chunk_id}:`, error);
-  }
-
-  // Fallback: use full page width if text not found
-  if (!rect) {
-    console.warn(`Text not found for chunk ${chunk.chunk_id}, using full page width`);
-    rect = {
-      x: 0,
-      y: 0,
-      w: 1,
-      h: 0.05, // Small height as placeholder
-    };
-  }
+  // Use placeholder rect - frontend will compute actual position based on row_number
+  // We use a small height placeholder at the top of the page
+  const rect: NormalizedRect = {
+    x: 0,
+    y: 0,
+    w: 1,
+    h: 0.05, // Small placeholder height
+  };
 
   return {
     anchorId: generateUUID(),
@@ -206,6 +266,7 @@ async function chunkToAnchor(
     rect,
     quote: chunk.text,
     quoteHash: computeQuoteHash(chunk.text),
+    rowNumber: rowNumber ?? undefined,
     createdAt: getCurrentTimestamp(),
   };
 }

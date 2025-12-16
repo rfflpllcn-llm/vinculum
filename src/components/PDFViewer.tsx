@@ -69,8 +69,13 @@ export default function PDFViewer({
     }
   }, [currentPage, onPageChange]);
 
+  // Store text content for line-based highlighting
+  const [pageTextContent, setPageTextContent] = useState<any>(null);
+
   // Render current page
   useEffect(() => {
+    let renderTask: any = null;
+
     const renderPage = async () => {
       if (!pdfDoc || !canvasRef.current) return;
 
@@ -90,13 +95,34 @@ export default function PDFViewer({
           viewport: viewport,
         };
 
-        await page.render(renderContext).promise;
+        // Cancel previous render task if it exists
+        if (renderTask) {
+          renderTask.cancel();
+        }
+
+        renderTask = page.render(renderContext);
+        await renderTask.promise;
+
+        // Get text content for line-based highlighting
+        const textContent = await page.getTextContent();
+        setPageTextContent({ textContent, viewport });
       } catch (error) {
+        // Ignore cancellation errors
+        if (error instanceof Error && error.name === 'RenderingCancelledException') {
+          return;
+        }
         console.error("Error rendering page:", error);
       }
     };
 
     renderPage();
+
+    // Cleanup: cancel render task if component unmounts or dependencies change
+    return () => {
+      if (renderTask) {
+        renderTask.cancel();
+      }
+    };
   }, [pdfDoc, currentPage, scale]);
 
   // Handle scroll events and emit scroll position
@@ -213,6 +239,78 @@ export default function PDFViewer({
 
     setSelectionStart(null);
     setSelectionRect(null);
+  };
+
+  /**
+   * Compute line-based highlight rectangle from rowNumber
+   * Groups text items into lines by their top coordinate
+   * @param rowNumber - 1-indexed line number within the page
+   * @returns Rectangle for the line, or null if not found
+   */
+  const computeLineRect = (rowNumber: number): NormalizedRect | null => {
+    if (!pageTextContent || !canvasRef.current) return null;
+
+    const { textContent, viewport } = pageTextContent;
+    const canvas = canvasRef.current;
+
+    interface LineGroup {
+      key: number;
+      items: Array<{ x: number; top: number; bottom: number; width: number }>;
+    }
+
+    const lineGroups: LineGroup[] = [];
+
+    // Group text items into lines based on their top coordinate
+    for (const item of textContent.items) {
+      if (!item.transform || !item.str) continue;
+
+      // Transform to viewport coordinates
+      const tx = item.transform[4];
+      const ty = item.transform[5];
+      const height = Math.abs(item.transform[3]) || 12;
+      const width = (item.width || 0) * viewport.scale;
+
+      const [x, y] = viewport.convertToViewportPoint(tx, ty);
+      const top = y - height;
+      const bottom = y;
+
+      // Use rounded top as grouping key (tolerant of small differences)
+      const key = Math.round(top);
+      let group = lineGroups.find(g => Math.abs(g.key - key) <= 1);
+
+      if (!group) {
+        group = { key, items: [] };
+        lineGroups.push(group);
+      }
+
+      group.items.push({ x, top, bottom, width });
+    }
+
+    // Sort lines top to bottom
+    lineGroups.sort((a, b) => a.key - b.key);
+
+    // Check if rowNumber is in range (1-indexed)
+    if (rowNumber < 1 || rowNumber > lineGroups.length) {
+      console.warn(`Row number ${rowNumber} out of range (page has ${lineGroups.length} lines)`);
+      return null;
+    }
+
+    // Get the line group (convert to 0-indexed)
+    const group = lineGroups[rowNumber - 1];
+
+    // Compute bounding box
+    const minX = Math.min(...group.items.map(i => i.x));
+    const maxX = Math.max(...group.items.map(i => i.x + i.width));
+    const minTop = Math.min(...group.items.map(i => i.top));
+    const maxBottom = Math.max(...group.items.map(i => i.bottom));
+
+    // Normalize to 0-1 coordinates
+    return {
+      x: minX / viewport.width,
+      y: minTop / viewport.height,
+      w: (maxX - minX) / viewport.width,
+      h: (maxBottom - minTop) / viewport.height,
+    };
   };
 
   /**
@@ -388,7 +486,12 @@ export default function PDFViewer({
             .map((anchor) => {
               if (!canvasRef.current) return null;
               const canvas = canvasRef.current;
-              const rect = anchor.rect;
+
+              // Use line-based highlighting if rowNumber is available
+              const rect = anchor.rowNumber != null
+                ? computeLineRect(anchor.rowNumber) || anchor.rect
+                : anchor.rect;
+
               return (
                 <div
                   key={anchor.anchorId}
@@ -408,7 +511,12 @@ export default function PDFViewer({
             .map((anchor) => {
               if (!canvasRef.current) return null;
               const canvas = canvasRef.current;
-              const rect = anchor.rect;
+
+              // Use line-based highlighting if rowNumber is available
+              const rect = anchor.rowNumber != null
+                ? computeLineRect(anchor.rowNumber) || anchor.rect
+                : anchor.rect;
+
               return (
                 <div
                   key={`selected-${anchor.anchorId}`}
