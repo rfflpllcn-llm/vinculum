@@ -14,6 +14,7 @@ import AlignmentUploadPanel from "@/components/AlignmentUploadPanel";
 import SearchPanel from "@/components/SearchPanel";
 import { Document, NormalizedRect, Anchor, ViewMode, Alignment } from "@/types/schemas";
 import { generateUUID } from "@/lib/utils";
+import { getCachedPDF, cachePDF, isPDFCached } from "@/lib/pdfCache";
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -48,6 +49,9 @@ export default function Home() {
   const [requestedSourcePage, setRequestedSourcePage] = useState<number | undefined>(undefined);
   const [requestedTargetPage, setRequestedTargetPage] = useState<number | undefined>(undefined);
   const [searchHighlightAnchor, setSearchHighlightAnchor] = useState<Anchor | null>(null);
+  const [useCache, setUseCache] = useState(true);
+  const [sourceDocCached, setSourceDocCached] = useState(false);
+  const [targetDocCached, setTargetDocCached] = useState(false);
 
   // Load available documents on mount
   useEffect(() => {
@@ -129,6 +133,34 @@ export default function Home() {
     }
   };
 
+  // Load document data with caching support
+  const loadDocumentData = async (driveFileId: string, filename: string, forceRefresh: boolean = false): Promise<ArrayBuffer> => {
+    // Check cache first if enabled and not forcing refresh
+    if (useCache && !forceRefresh) {
+      const cached = await getCachedPDF(driveFileId);
+      if (cached) {
+        console.log(`Using cached PDF: ${filename} (${(cached.size / 1024 / 1024).toFixed(2)} MB)`);
+        return cached.data;
+      }
+    }
+
+    // Download from Drive
+    console.log(`Downloading PDF from Drive: ${filename}`);
+    const response = await fetch(`/api/documents/${driveFileId}`);
+    if (!response.ok) throw new Error(`Failed to load file: ${filename}`);
+    const arrayBuffer = await response.arrayBuffer();
+
+    // Cache the downloaded file
+    try {
+      await cachePDF(driveFileId, filename, arrayBuffer);
+      console.log(`Cached PDF: ${filename} (${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)} MB)`);
+    } catch (error) {
+      console.warn('Failed to cache PDF:', error);
+    }
+
+    return arrayBuffer;
+  };
+
   const handleAlignmentUpload = async (
     chunksFile: File,
     alignmentsFile: File,
@@ -166,14 +198,26 @@ export default function Home() {
       setSourceDocument({ ...sourceDoc, documentId: newSourceDocId });
       setTargetDocument({ ...targetDoc, documentId: newTargetDocId });
 
-      // Load file data for both documents
+      // Check cache status
+      const [sourceCached, targetCached] = await Promise.all([
+        isPDFCached(sourceDoc.driveFileId),
+        isPDFCached(targetDoc.driveFileId),
+      ]);
+      setSourceDocCached(sourceCached);
+      setTargetDocCached(targetCached);
+
+      // Load file data for both documents (with caching)
       const [sourceData, targetData] = await Promise.all([
-        fetch(`/api/documents/${sourceDoc.driveFileId}`).then(r => r.arrayBuffer()),
-        fetch(`/api/documents/${targetDoc.driveFileId}`).then(r => r.arrayBuffer()),
+        loadDocumentData(sourceDoc.driveFileId, sourceDoc.filename),
+        loadDocumentData(targetDoc.driveFileId, targetDoc.filename),
       ]);
 
       setSourceFileData(sourceData);
       setTargetFileData(targetData);
+
+      // Update cache status after loading
+      setSourceDocCached(true);
+      setTargetDocCached(true);
 
       // Load anchors from Drive
       const [sourceAnchorsData, targetAnchorsData] = await Promise.all([
@@ -250,7 +294,7 @@ export default function Home() {
 
       // Find the alignment containing this source anchor and navigate target to it
       if (anchor) {
-        const alignment = alignments.find(al => al.sourceAnchorId === anchor.anchorId);
+        const alignment = alignments.find(al => al.sourceAnchorId === anchor!.anchorId);
         if (alignment) {
           console.log(`Found alignment:`, alignment);
           const targetAnchor = targetAnchors.find(a => a.anchorId === alignment.targetAnchorId);
@@ -285,7 +329,7 @@ export default function Home() {
 
       // Find the alignment containing this target anchor and navigate source to it
       if (anchor) {
-        const alignment = alignments.find(al => al.targetAnchorId === anchor.anchorId);
+        const alignment = alignments.find(al => al.targetAnchorId === anchor!.anchorId);
         if (alignment) {
           console.log(`Found alignment:`, alignment);
           const sourceAnchor = sourceAnchors.find(a => a.anchorId === alignment.sourceAnchorId);
@@ -519,8 +563,54 @@ export default function Home() {
                     />
                     <span className="text-sm">Sync Scroll</span>
                   </label>
-                  <div className="text-xs text-gray-600">
-                    Viewing page {currentSourcePage} alignments ({filteredAlignments.length} of {alignments.length})
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={useCache}
+                      onChange={(e) => setUseCache(e.target.checked)}
+                    />
+                    <span className="text-sm">Use Cache</span>
+                  </label>
+                  <div className="text-xs text-gray-600 space-y-1">
+                    <div>
+                      Viewing page {currentSourcePage} alignments ({filteredAlignments.length} of {alignments.length})
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={sourceDocCached ? 'text-green-600' : 'text-gray-400'}>
+                        {sourceDocCached ? '✓' : '○'} Source cached
+                      </span>
+                      <button
+                        onClick={async () => {
+                          if (sourceDocument) {
+                            const data = await loadDocumentData(sourceDocument.driveFileId, sourceDocument.filename, true);
+                            setSourceFileData(data);
+                            setSourceDocCached(true);
+                          }
+                        }}
+                        className="text-blue-600 hover:text-blue-800 underline"
+                        title="Force refresh from Drive"
+                      >
+                        ↻
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={targetDocCached ? 'text-green-600' : 'text-gray-400'}>
+                        {targetDocCached ? '✓' : '○'} Target cached
+                      </span>
+                      <button
+                        onClick={async () => {
+                          if (targetDocument) {
+                            const data = await loadDocumentData(targetDocument.driveFileId, targetDocument.filename, true);
+                            setTargetFileData(data);
+                            setTargetDocCached(true);
+                          }
+                        }}
+                        className="text-blue-600 hover:text-blue-800 underline"
+                        title="Force refresh from Drive"
+                      >
+                        ↻
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <AlignmentVisualization
