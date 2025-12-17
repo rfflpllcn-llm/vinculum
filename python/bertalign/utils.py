@@ -35,6 +35,8 @@ def detect_lang(text):
     max_len = 200
     chunk = text[0 : min(max_len, len(text))]
     lang = detect(chunk)
+    if lang in {'sr', 'hr', 'bs', 'sh'}:
+        lang = 'sr'
     if lang.startswith('zh'):
         lang = 'zh'
     return lang
@@ -43,6 +45,13 @@ def split_sents(text, lang):
     if lang in LANG.SPLITTER:
         if lang == 'zh':
             sents = _split_zh(text)
+        elif lang == 'sr':
+            try:
+                splitter = SentenceSplitter(language=lang)
+                sents = splitter.split(text=text)
+                sents = [sent.strip() for sent in sents]
+            except Exception:
+                sents = [sent.strip() for sent in re.split(r'(?<=[.!?…])\s+', text) if sent.strip()]
         else:
             splitter = SentenceSplitter(language=lang)
             sents = splitter.split(text=text) 
@@ -114,6 +123,7 @@ class LANG:
         'pt': 'Portuguese',
         'ro': 'Romanian',
         'ru': 'Russian',
+        'sr': 'Serbian',
         'sk': 'Slovak',
         'sl': 'Slovenian',
         'es': 'Spanish',
