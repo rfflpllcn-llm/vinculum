@@ -1,0 +1,21 @@
+services:
+  vllm-qwen:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-qwen
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
+    command:
+      - --host=${VLLM_HOST}
+      - --port=${VLLM_PORT}
+      - --model=${VLLM_MODEL}
+      - --max-model-len=${VLLM_MAX_MODEL_LEN}
+      - --tensor-parallel-size=${VLLM_TENSOR_PARALLEL_SIZE}
+      - --gpu-memory-utilization=${VLLM_GPU_MEMORY_UTILIZATION}
+      - --quantization=${VLLM_QUANTIZATION}
+      - --enforce-eager
+      - --disable-custom-all-reduce
+      - --dtype=auto
+      - --served-model-name=${VLLM_SERVED_MODEL_NAME}
+    ports:
+      - "8000:8000"
+    deploy: {}
