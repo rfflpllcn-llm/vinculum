@@ -18,13 +18,36 @@ import { generateUUID, computeQuoteHash, getCurrentTimestamp } from "@/lib/utils
  */
 export async function parseJSONL<T>(file: File): Promise<T[]> {
   const text = await file.text();
-  const lines = text.split('\n').filter(line => line.trim().length > 0);
+  let normalizedText = text;
+
+  // Handle cached files saved as JSON strings or arrays.
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed === "string") {
+      normalizedText = parsed;
+    } else if (Array.isArray(parsed)) {
+      return parsed as T[];
+    } else if (parsed && typeof parsed === "object") {
+      return [parsed as T];
+    }
+  } catch {
+    // Not a JSON document; treat as JSONL text.
+  }
+
+  const lines = normalizedText.split(/\r?\n/).filter(line => line.trim().length > 0);
 
   const results: T[] = [];
   for (const line of lines) {
     try {
-      const obj = JSON.parse(line) as T;
-      results.push(obj);
+      let obj = JSON.parse(line) as T | string;
+      if (typeof obj === "string") {
+        try {
+          obj = JSON.parse(obj) as T;
+        } catch {
+          // Keep original string if it cannot be parsed further.
+        }
+      }
+      results.push(obj as T);
     } catch (error) {
       console.error('Error parsing JSONL line:', line, error);
     }
@@ -112,9 +135,19 @@ export async function parseAlignmentFiles(
   const pairs = await parseJSONL<AlignmentPair>(alignmentsFile);
   console.log(`Parsed ${pairs.length} alignment pairs`);
 
+  const validPairs = pairs.filter(
+    (pair) => Array.isArray((pair as AlignmentPair).src_chunks) && Array.isArray((pair as AlignmentPair).tgt_chunks)
+  ) as AlignmentPair[];
+  if (validPairs.length !== pairs.length) {
+    console.warn(`Skipping ${pairs.length - validPairs.length} alignment entries without chunk references`);
+  }
+  if (validPairs.length === 0) {
+    throw new Error("No valid alignment pairs found (missing src_chunks/tgt_chunks).");
+  }
+
   // Step 3: Determine source and target languages from alignments
-  const sourceLang = pairs[0]?.src_lang || 'en';
-  const targetLang = pairs[0]?.tgt_lang || 'it';
+  const sourceLang = validPairs[0]?.src_lang || 'en';
+  const targetLang = validPairs[0]?.tgt_lang || 'it';
   console.log(`Source language: ${sourceLang}, Target language: ${targetLang}`);
 
   // Step 4: Compute row numbers for all chunks (sequential position within each page)
@@ -123,7 +156,7 @@ export async function parseAlignmentFiles(
 
   // Step 5: Collect all chunk IDs referenced in alignments
   const referencedChunkIds = new Set<number>();
-  pairs.forEach(pair => {
+  validPairs.forEach(pair => {
     const srcChunkIds = pair.src_chunks.map(item =>
       typeof item === 'number' ? item : item.chunk_id
     );
@@ -175,7 +208,7 @@ export async function parseAlignmentFiles(
   // Step 8: Convert alignment pairs to Alignments
   const alignments: Alignment[] = [];
 
-  for (const pair of pairs) {
+  for (const pair of validPairs) {
     // Extract chunk IDs (handle both number[] and LanguageChunk[] formats)
     const srcChunkIds = pair.src_chunks.map(item =>
       typeof item === 'number' ? item : item.chunk_id

@@ -121,7 +121,8 @@ export class DriveService {
    */
   async saveMetadata(
     filename: string,
-    content: any
+    content: any,
+    mimeType: string = "application/json"
   ): Promise<string> {
     const rootFolder = await this.findOrCreateFolder(VINCULUM_FOLDER);
     const metadataFolder = await this.findOrCreateFolder(
@@ -139,13 +140,17 @@ export class DriveService {
 
     const fileMetadata = {
       name: filename,
-      mimeType: "application/json",
+      mimeType,
       parents: [metadataFolder],
     };
 
+    const body = typeof content === "string"
+      ? content
+      : JSON.stringify(content, null, 2);
+
     const media = {
-      mimeType: "application/json",
-      body: JSON.stringify(content, null, 2),
+      mimeType,
+      body,
     };
 
     if (existing.data.files && existing.data.files.length > 0) {
