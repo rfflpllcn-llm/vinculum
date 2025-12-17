@@ -34,6 +34,8 @@ export default function PDFViewer({
 }: PDFViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const loadingTaskRef = useRef<pdfjsLib.PDFDocumentLoadingTask | null>(null);
+  const renderTaskRef = useRef<pdfjsLib.PDFRenderTask | null>(null);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -48,7 +50,20 @@ export default function PDFViewer({
     const loadPDF = async () => {
       try {
         setLoading(true);
-        const loadingTask = pdfjsLib.getDocument({ data: fileData });
+        if (loadingTaskRef.current) {
+          await loadingTaskRef.current.destroy();
+          loadingTaskRef.current = null;
+        }
+
+        if (fileData.byteLength === 0) {
+          console.warn("PDFViewer: fileData buffer is detached or empty.");
+          setLoading(false);
+          return;
+        }
+
+        const dataCopy = new Uint8Array(fileData).slice();
+        const loadingTask = pdfjsLib.getDocument({ data: dataCopy });
+        loadingTaskRef.current = loadingTask;
         const pdf = await loadingTask.promise;
         setPdfDoc(pdf);
         setTotalPages(pdf.numPages);
@@ -60,6 +75,13 @@ export default function PDFViewer({
     };
 
     loadPDF();
+
+    return () => {
+      if (loadingTaskRef.current) {
+        loadingTaskRef.current.destroy();
+        loadingTaskRef.current = null;
+      }
+    };
   }, [fileData]);
 
   // Notify parent when page changes
@@ -74,8 +96,6 @@ export default function PDFViewer({
 
   // Render current page
   useEffect(() => {
-    let renderTask: any = null;
-
     const renderPage = async () => {
       if (!pdfDoc || !canvasRef.current) return;
 
@@ -96,12 +116,12 @@ export default function PDFViewer({
         };
 
         // Cancel previous render task if it exists
-        if (renderTask) {
-          renderTask.cancel();
+        if (renderTaskRef.current) {
+          renderTaskRef.current.cancel();
         }
 
-        renderTask = page.render(renderContext);
-        await renderTask.promise;
+        renderTaskRef.current = page.render(renderContext);
+        await renderTaskRef.current.promise;
 
         // Get text content for line-based highlighting
         const textContent = await page.getTextContent();
@@ -119,8 +139,9 @@ export default function PDFViewer({
 
     // Cleanup: cancel render task if component unmounts or dependencies change
     return () => {
-      if (renderTask) {
-        renderTask.cancel();
+      if (renderTaskRef.current) {
+        renderTaskRef.current.cancel();
+        renderTaskRef.current = null;
       }
     };
   }, [pdfDoc, currentPage, scale]);

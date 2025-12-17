@@ -147,16 +147,24 @@ export default function AlignmentUploadPanel({
       throw new Error('Cached alignment file is missing.');
     }
 
-    const { sourceDoc, targetDoc } = getDocsForAlignment(
-      selectedAlignment.sourceLang,
-      selectedAlignment.targetLang
-    );
-
     const chunksFilename = data.chunks?.filename || "chunks.jsonl";
     const chunksFile = await downloadDriveFile(chunksId, chunksFilename);
     const alignmentsFile = await downloadDriveFile(
       selectedAlignment.driveFileId,
       selectedAlignment.filename
+    );
+
+    if (pdfSource !== 'drive') {
+      setMode('upload');
+      setChunksFile(chunksFile);
+      setAlignmentsFile(alignmentsFile);
+      alert('Cached JSONL files loaded. Select source/target documents and click Upload to continue.');
+      return;
+    }
+
+    const { sourceDoc, targetDoc } = getDocsForAlignment(
+      selectedAlignment.sourceLang,
+      selectedAlignment.targetLang
     );
 
     await onUpload(chunksFile, alignmentsFile, sourceDoc, targetDoc);
