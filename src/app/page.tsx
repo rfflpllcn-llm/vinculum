@@ -665,6 +665,10 @@ export default function Home() {
             ? targetAnchors.find((a) => a.anchorId === selectedAlignment.targetAnchorId) || null
             : null
         }
+        sourceAnchors={sourceAnchors}
+        targetAnchors={targetAnchors}
+        sourceLabel={sourceDocument?.filename || "Source"}
+        targetLabel={targetDocument?.filename || "Target"}
       />
     </main>
   );
