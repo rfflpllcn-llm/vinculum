@@ -46,6 +46,11 @@ export default function AlignmentUploadPanel({
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
 
+  // Generated files for download
+  const [generatedChunksId, setGeneratedChunksId] = useState<string | null>(null);
+  const [generatedAlignmentsId, setGeneratedAlignmentsId] = useState<string | null>(null);
+  const [generatedAlignmentFilename, setGeneratedAlignmentFilename] = useState<string>('alignment.jsonl');
+
   const downloadDriveFile = async (fileId: string, filename: string): Promise<File> => {
     const response = await fetch(`/api/documents/${fileId}`);
     if (!response.ok) {
@@ -213,6 +218,20 @@ export default function AlignmentUploadPanel({
         if (data.status === 'completed') {
           setGenerating(false);
           setTaskId(null);
+
+          // Store generated file IDs for download
+          const chunksId = data.result?.chunks?.path || data.result?.chunks?.driveFileId;
+          if (chunksId) {
+            setGeneratedChunksId(chunksId);
+          }
+
+          const alignments = normalizeAlignments(data.result?.alignments);
+          if (alignments.length > 0) {
+            // Prefer first alignment for download
+            setGeneratedAlignmentsId(alignments[0].driveFileId);
+            setGeneratedAlignmentFilename(alignments[0].filename);
+          }
+
           try {
             const result = await useCachedFiles(data.result);
             if (result === null) {
@@ -336,6 +355,12 @@ export default function AlignmentUploadPanel({
     const newPdfFiles = { ...pdfFiles };
     delete newPdfFiles[lang];
     setPdfFiles(newPdfFiles);
+  };
+
+  // Download JSONL file helper
+  const handleDownload = (fileId: string, filename: string) => {
+    const url = `/api/alignments/download?fileId=${encodeURIComponent(fileId)}&filename=${encodeURIComponent(filename)}`;
+    window.location.href = url;
   };
 
   const canUpload = sourceDocId && targetDocId && chunksFile && alignmentsFile && !uploading;
@@ -721,6 +746,31 @@ export default function AlignmentUploadPanel({
               </p>
             )}
           </div>
+
+          {/* Download Generated Files */}
+          {(generatedChunksId || generatedAlignmentsId) && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-blue-900 mb-3">Download Generated Files:</h4>
+              <div className="flex gap-2">
+                {generatedChunksId && (
+                  <button
+                    onClick={() => handleDownload(generatedChunksId, 'chunks.jsonl')}
+                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    ↓ Download Chunks
+                  </button>
+                )}
+                {generatedAlignmentsId && (
+                  <button
+                    onClick={() => handleDownload(generatedAlignmentsId, generatedAlignmentFilename)}
+                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    ↓ Download Alignments
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Info */}
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
