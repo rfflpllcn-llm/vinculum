@@ -44,6 +44,7 @@ export default function PDFViewer({
   const [selecting, setSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
+  const [pageInputValue, setPageInputValue] = useState<string>(currentPage.toString());
 
   // Load PDF document
   useEffect(() => {
@@ -90,6 +91,11 @@ export default function PDFViewer({
       onPageChange(currentPage);
     }
   }, [currentPage, onPageChange]);
+
+  // Sync page input with current page
+  useEffect(() => {
+    setPageInputValue(currentPage.toString());
+  }, [currentPage]);
 
   // Store text content for line-based highlighting
   const [pageTextContent, setPageTextContent] = useState<any>(null);
@@ -354,6 +360,36 @@ export default function PDFViewer({
     };
   };
 
+  // Navigation handlers
+  const goToPage = (page: number) => {
+    const targetPage = Math.max(1, Math.min(totalPages, page));
+    setCurrentPage(targetPage);
+  };
+
+  const handlePageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPageInputValue(e.target.value);
+  };
+
+  const handlePageInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const pageNum = parseInt(pageInputValue, 10);
+      if (!isNaN(pageNum)) {
+        goToPage(pageNum);
+      } else {
+        setPageInputValue(currentPage.toString());
+      }
+    }
+  };
+
+  const handlePageInputBlur = () => {
+    const pageNum = parseInt(pageInputValue, 10);
+    if (!isNaN(pageNum)) {
+      goToPage(pageNum);
+    } else {
+      setPageInputValue(currentPage.toString());
+    }
+  };
+
   /**
    * Extract text from a rectangular selection on the PDF page
    */
@@ -460,37 +496,71 @@ export default function PDFViewer({
     <div className="flex flex-col h-full bg-gray-100">
       {/* Controls */}
       <div className="flex items-center justify-between p-3 bg-white border-b">
-        <div className="flex items-center space-x-2">
+        {/* Page Navigation */}
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+            onClick={() => goToPage(1)}
             disabled={currentPage <= 1}
-            className="px-3 py-1 border rounded disabled:opacity-50"
+            className="px-2 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="First page"
           >
-            Previous
+            ⏮
           </button>
-          <span className="text-sm">
-            Page {currentPage} / {totalPages}
-          </span>
           <button
-            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-            disabled={currentPage >= totalPages}
-            className="px-3 py-1 border rounded disabled:opacity-50"
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="Previous page"
           >
-            Next
+            ◀
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Page</span>
+            <input
+              type="text"
+              value={pageInputValue}
+              onChange={handlePageInputChange}
+              onKeyDown={handlePageInputKeyDown}
+              onBlur={handlePageInputBlur}
+              className="w-14 px-2 py-1 text-sm text-center border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              title="Enter page number and press Enter"
+            />
+            <span className="text-sm text-gray-600">of {totalPages}</span>
+          </div>
+
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="Next page"
+          >
+            ▶
+          </button>
+          <button
+            onClick={() => goToPage(totalPages)}
+            disabled={currentPage >= totalPages}
+            className="px-2 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="Last page"
+          >
+            ⏭
           </button>
         </div>
 
-        <div className="flex items-center space-x-2">
+        {/* Zoom Controls */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setScale(Math.max(0.5, scale - 0.25))}
-            className="px-3 py-1 border rounded"
+            className="px-3 py-1 text-sm border rounded hover:bg-gray-100 transition-colors"
+            title="Zoom out"
           >
-            -
+            −
           </button>
-          <span className="text-sm">{Math.round(scale * 100)}%</span>
+          <span className="text-sm text-gray-700 min-w-[50px] text-center">{Math.round(scale * 100)}%</span>
           <button
             onClick={() => setScale(Math.min(3, scale + 0.25))}
-            className="px-3 py-1 border rounded"
+            className="px-3 py-1 text-sm border rounded hover:bg-gray-100 transition-colors"
+            title="Zoom in"
           >
             +
           </button>
