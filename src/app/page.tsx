@@ -272,25 +272,17 @@ export default function Home() {
 
   // Handle search navigation
   const handleSearchNavigate = (page: number, lang: string, rowNumber?: number) => {
-    console.log(`Search navigate called: page=${page}, lang=${lang}, rowNumber=${rowNumber}`);
-    console.log(`Source doc: ${sourceDocument?.filename}`);
-    console.log(`Target doc: ${targetDocument?.filename}`);
-
     // Determine which document based on language
     // Check both exact match and substring match for robustness
     const sourceLangMatch = sourceDocument?.filename.toLowerCase().includes(lang.toLowerCase());
     const targetLangMatch = targetDocument?.filename.toLowerCase().includes(lang.toLowerCase());
 
-    console.log(`Language match - source: ${sourceLangMatch}, target: ${targetLangMatch}`);
-
     // Find the anchor on that page with the matching rowNumber
     let anchor: Anchor | null = null;
 
     if (sourceLangMatch) {
-      console.log(`Setting source page to ${page}`);
       // Find the source anchor at this page and row number
       anchor = sourceAnchors.find(a => a.page === page && a.rowNumber === rowNumber) || null;
-      console.log(`Found source anchor:`, anchor);
 
       setRequestedSourcePage(page);
       setCurrentSourcePage(page); // Also update current page for alignment filtering
@@ -304,23 +296,19 @@ export default function Home() {
           al.sourceAnchorIds?.includes(anchor!.anchorId)
         );
         if (alignment) {
-          console.log(`Found alignment:`, alignment);
           // Get first target anchor from the alignment
           const targetAnchorId = alignment.targetAnchorIds?.[0] || alignment.targetAnchorId;
           const targetAnchor = targetAnchors.find(a => a.anchorId === targetAnchorId);
           if (targetAnchor) {
-            console.log(`Navigating target to page ${targetAnchor.page}`);
             setRequestedTargetPage(targetAnchor.page);
             setCurrentTargetPage(targetAnchor.page);
             // Select the alignment to show the connection
             setSelectedAlignment(alignment);
           } else {
-            console.warn(`Target anchor not found for alignment`);
             // Clear any selected alignment since we're doing a search navigation
             setSelectedAlignment(null);
           }
         } else {
-          console.log(`No alignment found for this source anchor`);
           // Clear any selected alignment since we're doing a search navigation
           setSelectedAlignment(null);
         }
@@ -328,10 +316,8 @@ export default function Home() {
         setSelectedAlignment(null);
       }
     } else if (targetLangMatch) {
-      console.log(`Setting target page to ${page}`);
       // Find the target anchor at this page and row number
       anchor = targetAnchors.find(a => a.page === page && a.rowNumber === rowNumber) || null;
-      console.log(`Found target anchor:`, anchor);
 
       setRequestedTargetPage(page);
       setCurrentTargetPage(page); // Also update current page
@@ -345,31 +331,25 @@ export default function Home() {
           al.targetAnchorIds?.includes(anchor!.anchorId)
         );
         if (alignment) {
-          console.log(`Found alignment:`, alignment);
           // Get first source anchor from the alignment
           const sourceAnchorId = alignment.sourceAnchorIds?.[0] || alignment.sourceAnchorId;
           const sourceAnchor = sourceAnchors.find(a => a.anchorId === sourceAnchorId);
           if (sourceAnchor) {
-            console.log(`Navigating source to page ${sourceAnchor.page}`);
             setRequestedSourcePage(sourceAnchor.page);
             setCurrentSourcePage(sourceAnchor.page);
             // Select the alignment to show the connection
             setSelectedAlignment(alignment);
           } else {
-            console.warn(`Source anchor not found for alignment`);
             // Clear any selected alignment since we're doing a search navigation
             setSelectedAlignment(null);
           }
         } else {
-          console.log(`No alignment found for this target anchor`);
           // Clear any selected alignment since we're doing a search navigation
           setSelectedAlignment(null);
         }
       } else {
         setSelectedAlignment(null);
       }
-    } else {
-      console.warn(`Could not match language "${lang}" to either document`);
     }
   };
 
@@ -441,27 +421,6 @@ export default function Home() {
     return [];
   }, [searchHighlightAnchor, selectedAlignment, anchorIdToTargetAnchor]);
 
-  // Debug logging for search highlight
-  if (searchHighlightAnchor) {
-    console.log('Search highlight anchor:', searchHighlightAnchor);
-    console.log('Is in sourceAnchors?', anchorIdToSourceAnchor.has(searchHighlightAnchor.anchorId));
-    console.log('Is in targetAnchors?', anchorIdToTargetAnchor.has(searchHighlightAnchor.anchorId));
-    console.log('Selected source anchors:', selectedSourceAnchors);
-    console.log('Selected target anchors:', selectedTargetAnchors);
-  }
-
-  // Debug logging
-  if (selectedAlignment) {
-    console.log('Selected alignment:', selectedAlignment);
-    console.log('Source anchors to highlight:', selectedSourceAnchors.length, selectedSourceAnchors.map(a => ({ id: a.anchorId, page: a.page, quote: a.quote.substring(0, 50) })));
-    console.log('Target anchors to highlight:', selectedTargetAnchors.length, selectedTargetAnchors.map(a => ({ id: a.anchorId, page: a.page, quote: a.quote.substring(0, 50) })));
-
-    const matchingSource = anchorIdToSourceAnchor.get(selectedAlignment.sourceAnchorId);
-    const matchingTarget = anchorIdToTargetAnchor.get(selectedAlignment.targetAnchorId);
-
-    // These warnings are now obsolete with Map lookups (maps guarantee uniqueness)
-    // Keeping the structure in case duplicate detection is needed elsewhere
-  }
 
   // Get target page to scroll to when alignment is selected
   const alignmentTargetPage = selectedTargetAnchors.length > 0
