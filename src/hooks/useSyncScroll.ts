@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { ScrollPosition, Anchor, Alignment } from '@/types/schemas';
 
 /**
@@ -37,6 +37,35 @@ export function useSyncScroll({
   const manualScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [manualScrollDisabled, setManualScrollDisabled] = useState(false);
 
+  // Precompute lookup maps to avoid O(N+A+T) linear searches on every scroll event
+  // This reduces hot path from O(N+K+A+T) to O(K) per scroll
+  const pageToSourceAnchors = useMemo(() => {
+    const map = new Map<number, Anchor[]>();
+    sourceAnchors.forEach(anchor => {
+      if (!map.has(anchor.page)) {
+        map.set(anchor.page, []);
+      }
+      map.get(anchor.page)!.push(anchor);
+    });
+    return map;
+  }, [sourceAnchors]);
+
+  const sourceAnchorIdToAlignment = useMemo(() => {
+    const map = new Map<string, Alignment>();
+    alignments.forEach(alignment => {
+      map.set(alignment.sourceAnchorId, alignment);
+    });
+    return map;
+  }, [alignments]);
+
+  const anchorIdToTargetAnchor = useMemo(() => {
+    const map = new Map<string, Anchor>();
+    targetAnchors.forEach(anchor => {
+      map.set(anchor.anchorId, anchor);
+    });
+    return map;
+  }, [targetAnchors]);
+
   /**
    * Handle scroll event from source PDF viewer
    */
@@ -47,9 +76,9 @@ export function useSyncScroll({
       // Find nearest alignment anchor to current scroll position
       const nearestAlignment = findNearestAlignment(
         position,
-        sourceAnchors,
-        targetAnchors,
-        alignments
+        pageToSourceAnchors,
+        sourceAnchorIdToAlignment,
+        anchorIdToTargetAnchor
       );
 
       if (!nearestAlignment) {
@@ -79,7 +108,7 @@ export function useSyncScroll({
         setTargetScrollPosition(targetPosition);
       }
     },
-    [enabled, manualScrollDisabled, sourceAnchors, targetAnchors, alignments]
+    [enabled, manualScrollDisabled, pageToSourceAnchors, sourceAnchorIdToAlignment, anchorIdToTargetAnchor]
   );
 
   /**
@@ -106,27 +135,24 @@ export function useSyncScroll({
 
 /**
  * Find the nearest alignment anchor to the current scroll position
+ * Uses precomputed lookup maps for O(K) performance instead of O(N+K+A+T)
  */
 function findNearestAlignment(
   position: ScrollPosition,
-  sourceAnchors: Anchor[],
-  targetAnchors: Anchor[],
-  alignments: Alignment[]
+  pageToSourceAnchors: Map<number, Anchor[]>,
+  sourceAnchorIdToAlignment: Map<string, Alignment>,
+  anchorIdToTargetAnchor: Map<string, Anchor>
 ): {
   sourceAnchor: Anchor;
   targetAnchor: Anchor;
   proportionalOffset: number;
 } | null {
-  if (alignments.length === 0) return null;
+  // O(1) lookup instead of O(N) filter
+  const sourceAnchorsOnPage = pageToSourceAnchors.get(position.page);
 
-  // Filter alignments to current page
-  const sourceAnchorsOnPage = sourceAnchors.filter(
-    (anchor) => anchor.page === position.page
-  );
+  if (!sourceAnchorsOnPage || sourceAnchorsOnPage.length === 0) return null;
 
-  if (sourceAnchorsOnPage.length === 0) return null;
-
-  // Find nearest source anchor based on scroll position
+  // Find nearest source anchor based on scroll position - O(K) where K = anchors on page
   let nearestSourceAnchor: Anchor | null = null;
   let minDistance = Infinity;
 
@@ -142,16 +168,13 @@ function findNearestAlignment(
 
   if (!nearestSourceAnchor) return null;
 
-  // Find corresponding target anchor via alignment
-  const alignment = alignments.find(
-    (a) => a.sourceAnchorId === nearestSourceAnchor!.anchorId
-  );
+  // O(1) lookup instead of O(A) find
+  const alignment = sourceAnchorIdToAlignment.get(nearestSourceAnchor.anchorId);
 
   if (!alignment) return null;
 
-  const targetAnchor = targetAnchors.find(
-    (a) => a.anchorId === alignment.targetAnchorId
-  );
+  // O(1) lookup instead of O(T) find
+  const targetAnchor = anchorIdToTargetAnchor.get(alignment.targetAnchorId);
 
   if (!targetAnchor) return null;
 
