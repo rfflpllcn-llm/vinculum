@@ -136,6 +136,7 @@ def generate_jsonl(
     Returns:
         Dict with paths to generated files and statistics
     """
+    temp_dir = None
     try:
         # Create temporary working directory
         temp_dir = tempfile.mkdtemp(prefix="pdfalign_")
@@ -177,10 +178,27 @@ def generate_jsonl(
 
         # Step 5: Convert to Markdown
         print("Converting PDFs to Markdown...")
+        markdown_script = pipeline.pdf_pipeline_dir / "run_pdf_to_markdown_parallel.sh"
+
+        # Check if script exists
+        if not markdown_script.exists():
+            print(f"Error: Markdown conversion script not found: {markdown_script}")
+            raise FileNotFoundError(f"Script not found: {markdown_script}")
+
+        # Make script executable
+        import stat
+        os.chmod(markdown_script, os.stat(markdown_script).st_mode | stat.S_IEXEC)
+
         result = subprocess.run([
-            str(pipeline.pdf_pipeline_dir / "run_pdf_to_markdown_parallel.sh"),
+            str(markdown_script),
             str(pipeline.data_dir)
-        ], check=True, capture_output=True, text=True)
+        ], capture_output=True, text=True)
+
+        if result.returncode != 0:
+            print(f"Markdown conversion failed with return code {result.returncode}")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
+            raise Exception(f"Markdown conversion failed: {result.stderr}")
 
         # Step 6: Remove remaining PDFs
         result = subprocess.run([
@@ -266,9 +284,6 @@ def generate_jsonl(
 
         output_files["alignments"] = alignments
 
-        # Clean up temp directory
-        shutil.rmtree(temp_dir)
-
         return {
             "success": True,
             "output_files": output_files
@@ -280,6 +295,10 @@ def generate_jsonl(
             "error": str(e),
             "error_type": type(e).__name__
         }
+    finally:
+        # Always clean up temp directory if it was created
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
 
 
 def main():
