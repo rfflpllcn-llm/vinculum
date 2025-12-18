@@ -138,12 +138,6 @@ export class DriveService {
       spaces: "drive",
     });
 
-    const fileMetadata = {
-      name: filename,
-      mimeType,
-      parents: [metadataFolder],
-    };
-
     const body = typeof content === "string"
       ? content
       : JSON.stringify(content, null, 2);
@@ -154,18 +148,26 @@ export class DriveService {
     };
 
     if (existing.data.files && existing.data.files.length > 0) {
-      // Update existing
+      // Update existing - don't include parents field
       const fileId = existing.data.files[0].id!;
       await this.drive.files.update({
         fileId,
-        requestBody: fileMetadata,
+        requestBody: {
+          name: filename,
+          mimeType,
+          // parents field not allowed in updates
+        },
         media: media as any,
       });
       return fileId;
     } else {
-      // Create new
+      // Create new - include parents field
       const file = await this.drive.files.create({
-        requestBody: fileMetadata,
+        requestBody: {
+          name: filename,
+          mimeType,
+          parents: [metadataFolder],
+        },
         media: media as any,
         fields: "id",
       });

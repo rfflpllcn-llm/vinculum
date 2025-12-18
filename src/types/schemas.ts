@@ -78,9 +78,12 @@ export type AlignmentType = "translation" | "paraphrase" | "commentary" | "allus
 
 export interface Alignment {
   alignmentId: UUID;
-  sourceAnchorId: UUID;
-  targetAnchorId: UUID;
+  sourceAnchorId: UUID; // Primary source anchor (kept for backward compatibility)
+  targetAnchorId: UUID; // Primary target anchor (kept for backward compatibility)
+  sourceAnchorIds?: UUID[]; // All source anchors involved in this alignment
+  targetAnchorIds?: UUID[]; // All target anchors involved in this alignment
   type: AlignmentType;
+  alignment_type?: string; // Original alignment type from JSONL (e.g. "1-1", "2-1", "1-2")
   confidence: number; // 0.0 - 1.0
   createdAt: string; // ISO-8601
 }

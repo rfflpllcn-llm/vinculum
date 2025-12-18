@@ -1,22 +1,13 @@
-✅ TODO 1: add page-based filtering so the alignment list only shows alignments for the current source page being viewed.
-   - Implemented page change tracking in PDFViewer component
-   - Added onSourcePageChange callback to DualDocumentView
-   - Filter alignments by current source page in page.tsx
-   - Added page indicator showing "Viewing page X alignments (Y of Z)"
+[x] Critical – python/wrapper.py:139-299: On any exception, the function returns without cleaning up temp_dir, leaking a full copy of the PDFs/Markdown on every failed run. Wrap the whole body in a try/finally (or delete in the except path) so shutil.rmtree(temp_dir) always executes before
+    returning.
+[x]  High-value – src/app/page.tsx:377-401: Rendering filters alignments and builds highlight lists using Array.find/Array.filter repeatedly per render. For N alignments and M anchors this is O(N·M) every render and grows quickly with large datasets. Build useMemo maps (anchorId -> anchor, page ->
+  source anchors) once and use constant-time lookups for filteredAlignments, selectedSourceAnchors, and selectedTargetAnchors; this also avoids the brittle includes(searchHighlightAnchor) reference check.
+[x] High-value – src/components/SearchPanel.tsx:54-68: Search walks every chunk and, for each match, linearly searches all anchors by text equality. This is quadratic and can produce wrong rowNumber when the same text occurs multiple times. Pass a chunkId -> rowNumber/language/page map (or include
+  rowNumber in chunkMap) and read it directly; avoid scanning anchors on every keystroke.
+[x] High-value – src/components/AlignmentVisualization.tsx:40-134: selectedTypes is initialized from uniqueAlignmentTypes but never resyncs when new alignments arrive, so new types are silently hidden until the user manually toggles filters. Add an effect to reset/merge when uniqueAlignmentTypes
+  changes. Also, per-type counts use alignments.filter inside the render loop and anchor lookups use find for every row (lines 129-152), leading to O(N²) work. Precompute a type -> count map and anchorId -> anchor maps via useMemo and reuse them in the render.
+[x] High-value – src/hooks/useSyncScroll.ts:43-83,122-168: Every scroll event filters anchors on the current page and linearly searches alignments and targetAnchors to find a match. With frequent scroll events and many anchors, this becomes a hot path. Precompute dictionaries (page -> source
+  anchors, sourceAnchorId -> alignment, anchorId -> anchor) outside the handler so handleSourceScroll does only constant-time lookups.
+[x] Optional – src/app/page.tsx:404-427: Debug console.log/console.warn calls run on every render and dump large objects; these can degrade UX in production and slow rendering. Consider guarding them behind a debug flag or removing them.
 
-✅ TODO 2: make alignments clickable so that when clicked, the corresponding texts from source and target get coloured marked
-   - **Click alignment** → Highlights the corresponding text in BOTH PDFs (green highlight)
-   - **Highlighting persists** → Stays visible even when modal is closed
-   - **AI Audit button** → Separate "AI Audit" button in each alignment to open the modal
-   - **Only one anchor highlighted per side** → Force slice(0,1) to prevent multiple highlights
-   - Fixed documentId mismatch bug that prevented highlighting from working
-   - Target PDF automatically scrolls to show the corresponding text when alignment is clicked
-   - **🎯 REPLACED complex text matching with embedding-based search:**
-     - Uses @xenova/transformers (sentence-transformers) for semantic similarity
-     - Model: all-MiniLM-L6-v2 (cached after first load)
-     - 50-word sliding windows with 50% overlap
-     - Cosine similarity to find best matching text location
-     - Much simpler and more accurate than previous string matching
-     - Handles paraphrasing, OCR errors, and duplicate text automatically
-
-
+[] implement the possibility for the user to download the chunks and the alignments jsonl files after their generation

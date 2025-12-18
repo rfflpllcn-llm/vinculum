@@ -231,13 +231,16 @@ export async function parseAlignmentFiles(
       continue;
     }
 
-    // For simplicity, use first anchor from each side
-    // (Multi-chunk alignments could be handled with AlignmentGroup in future)
+    // Store all anchor IDs for multi-chunk alignments (e.g., "2-1", "1-2")
+    // Keep first anchor as primary for backward compatibility
     const alignment: Alignment = {
       alignmentId: generateUUID(),
-      sourceAnchorId: sourceAnchorIds[0],
-      targetAnchorId: targetAnchorIds[0],
+      sourceAnchorId: sourceAnchorIds[0], // Primary anchor (backward compatibility)
+      targetAnchorId: targetAnchorIds[0], // Primary anchor (backward compatibility)
+      sourceAnchorIds: sourceAnchorIds, // All source anchors
+      targetAnchorIds: targetAnchorIds, // All target anchors
       type: mapAlignmentType(pair.alignment_type),
+      alignment_type: pair.alignment_type, // Preserve original alignment type (e.g. "1-1", "2-1")
       confidence: pair.validation.confidence || 1.0,
       createdAt: getCurrentTimestamp(),
     };
