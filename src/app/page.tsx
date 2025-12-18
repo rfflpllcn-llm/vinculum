@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import LibraryPanel from "@/components/LibraryPanel";
 import PDFViewer from "@/components/PDFViewer";
@@ -298,10 +298,16 @@ export default function Home() {
 
       // Find the alignment containing this source anchor and navigate target to it
       if (anchor) {
-        const alignment = alignments.find(al => al.sourceAnchorId === anchor!.anchorId);
+        // Check both primary anchorId and sourceAnchorIds array
+        const alignment = alignments.find(al =>
+          al.sourceAnchorId === anchor!.anchorId ||
+          al.sourceAnchorIds?.includes(anchor!.anchorId)
+        );
         if (alignment) {
           console.log(`Found alignment:`, alignment);
-          const targetAnchor = targetAnchors.find(a => a.anchorId === alignment.targetAnchorId);
+          // Get first target anchor from the alignment
+          const targetAnchorId = alignment.targetAnchorIds?.[0] || alignment.targetAnchorId;
+          const targetAnchor = targetAnchors.find(a => a.anchorId === targetAnchorId);
           if (targetAnchor) {
             console.log(`Navigating target to page ${targetAnchor.page}`);
             setRequestedTargetPage(targetAnchor.page);
@@ -333,10 +339,16 @@ export default function Home() {
 
       // Find the alignment containing this target anchor and navigate source to it
       if (anchor) {
-        const alignment = alignments.find(al => al.targetAnchorId === anchor!.anchorId);
+        // Check both primary anchorId and targetAnchorIds array
+        const alignment = alignments.find(al =>
+          al.targetAnchorId === anchor!.anchorId ||
+          al.targetAnchorIds?.includes(anchor!.anchorId)
+        );
         if (alignment) {
           console.log(`Found alignment:`, alignment);
-          const sourceAnchor = sourceAnchors.find(a => a.anchorId === alignment.sourceAnchorId);
+          // Get first source anchor from the alignment
+          const sourceAnchorId = alignment.sourceAnchorIds?.[0] || alignment.sourceAnchorId;
+          const sourceAnchor = sourceAnchors.find(a => a.anchorId === sourceAnchorId);
           if (sourceAnchor) {
             console.log(`Navigating source to page ${sourceAnchor.page}`);
             setRequestedSourcePage(sourceAnchor.page);
@@ -361,30 +373,79 @@ export default function Home() {
     }
   };
 
-  // Filter alignments by current source page
-  const filteredAlignments = alignments.filter(alignment => {
-    const sourceAnchor = sourceAnchors.find(a => a.anchorId === alignment.sourceAnchorId);
-    return sourceAnchor && sourceAnchor.page === currentSourcePage;
-  });
+  // Build memoized lookup maps for O(1) anchor access
+  const anchorIdToSourceAnchor = useMemo(() => {
+    const map = new Map<string, Anchor>();
+    sourceAnchors.forEach(anchor => {
+      map.set(anchor.anchorId, anchor);
+    });
+    return map;
+  }, [sourceAnchors]);
 
-  // Get selected source and target anchors for highlighting
+  const anchorIdToTargetAnchor = useMemo(() => {
+    const map = new Map<string, Anchor>();
+    targetAnchors.forEach(anchor => {
+      map.set(anchor.anchorId, anchor);
+    });
+    return map;
+  }, [targetAnchors]);
+
+  const pageToSourceAnchorIds = useMemo(() => {
+    const map = new Map<number, Set<string>>();
+    sourceAnchors.forEach(anchor => {
+      if (!map.has(anchor.page)) {
+        map.set(anchor.page, new Set());
+      }
+      map.get(anchor.page)!.add(anchor.anchorId);
+    });
+    return map;
+  }, [sourceAnchors]);
+
+  // Filter alignments by current source page - O(N) instead of O(N*M)
+  const filteredAlignments = useMemo(() => {
+    const anchorIdsOnPage = pageToSourceAnchorIds.get(currentSourcePage);
+    if (!anchorIdsOnPage) return [];
+
+    return alignments.filter(alignment =>
+      anchorIdsOnPage.has(alignment.sourceAnchorId)
+    );
+  }, [alignments, pageToSourceAnchorIds, currentSourcePage]);
+
+  // Get selected source and target anchors for highlighting - O(K) instead of O(M*K)
   // Priority: search highlight > alignment selection
-  const selectedSourceAnchors = searchHighlightAnchor && sourceAnchors.includes(searchHighlightAnchor)
-    ? [searchHighlightAnchor]
-    : selectedAlignment
-    ? sourceAnchors.filter(a => a.anchorId === selectedAlignment.sourceAnchorId).slice(0, 1)
-    : [];
-  const selectedTargetAnchors = searchHighlightAnchor && targetAnchors.includes(searchHighlightAnchor)
-    ? [searchHighlightAnchor]
-    : selectedAlignment
-    ? targetAnchors.filter(a => a.anchorId === selectedAlignment.targetAnchorId).slice(0, 1)
-    : [];
+  const selectedSourceAnchors = useMemo(() => {
+    if (searchHighlightAnchor && anchorIdToSourceAnchor.has(searchHighlightAnchor.anchorId)) {
+      return [searchHighlightAnchor];
+    }
+    if (selectedAlignment) {
+      // Use all source anchors if available (for multi-chunk alignments like "2-1", "3-1")
+      const anchorIds = selectedAlignment.sourceAnchorIds || [selectedAlignment.sourceAnchorId];
+      return anchorIds
+        .map(id => anchorIdToSourceAnchor.get(id))
+        .filter((anchor): anchor is Anchor => anchor !== undefined);
+    }
+    return [];
+  }, [searchHighlightAnchor, selectedAlignment, anchorIdToSourceAnchor]);
+
+  const selectedTargetAnchors = useMemo(() => {
+    if (searchHighlightAnchor && anchorIdToTargetAnchor.has(searchHighlightAnchor.anchorId)) {
+      return [searchHighlightAnchor];
+    }
+    if (selectedAlignment) {
+      // Use all target anchors if available (for multi-chunk alignments like "1-2", "1-3")
+      const anchorIds = selectedAlignment.targetAnchorIds || [selectedAlignment.targetAnchorId];
+      return anchorIds
+        .map(id => anchorIdToTargetAnchor.get(id))
+        .filter((anchor): anchor is Anchor => anchor !== undefined);
+    }
+    return [];
+  }, [searchHighlightAnchor, selectedAlignment, anchorIdToTargetAnchor]);
 
   // Debug logging for search highlight
   if (searchHighlightAnchor) {
     console.log('Search highlight anchor:', searchHighlightAnchor);
-    console.log('Is in sourceAnchors?', sourceAnchors.includes(searchHighlightAnchor));
-    console.log('Is in targetAnchors?', targetAnchors.includes(searchHighlightAnchor));
+    console.log('Is in sourceAnchors?', anchorIdToSourceAnchor.has(searchHighlightAnchor.anchorId));
+    console.log('Is in targetAnchors?', anchorIdToTargetAnchor.has(searchHighlightAnchor.anchorId));
     console.log('Selected source anchors:', selectedSourceAnchors);
     console.log('Selected target anchors:', selectedTargetAnchors);
   }
@@ -395,15 +456,11 @@ export default function Home() {
     console.log('Source anchors to highlight:', selectedSourceAnchors.length, selectedSourceAnchors.map(a => ({ id: a.anchorId, page: a.page, quote: a.quote.substring(0, 50) })));
     console.log('Target anchors to highlight:', selectedTargetAnchors.length, selectedTargetAnchors.map(a => ({ id: a.anchorId, page: a.page, quote: a.quote.substring(0, 50) })));
 
-    const matchingSource = sourceAnchors.filter(a => a.anchorId === selectedAlignment.sourceAnchorId);
-    const matchingTarget = targetAnchors.filter(a => a.anchorId === selectedAlignment.targetAnchorId);
+    const matchingSource = anchorIdToSourceAnchor.get(selectedAlignment.sourceAnchorId);
+    const matchingTarget = anchorIdToTargetAnchor.get(selectedAlignment.targetAnchorId);
 
-    if (matchingSource.length > 1) {
-      console.warn(`⚠️ Multiple SOURCE anchors found for anchorId ${selectedAlignment.sourceAnchorId}:`, matchingSource.length);
-    }
-    if (matchingTarget.length > 1) {
-      console.warn(`⚠️ Multiple TARGET anchors found for anchorId ${selectedAlignment.targetAnchorId}:`, matchingTarget.length);
-    }
+    // These warnings are now obsolete with Map lookups (maps guarantee uniqueness)
+    // Keeping the structure in case duplicate detection is needed elsewhere
   }
 
   // Get target page to scroll to when alignment is selected
@@ -657,12 +714,12 @@ export default function Home() {
         alignment={selectedAlignment}
         sourceAnchor={
           selectedAlignment
-            ? sourceAnchors.find((a) => a.anchorId === selectedAlignment.sourceAnchorId) || null
+            ? anchorIdToSourceAnchor.get(selectedAlignment.sourceAnchorId) || null
             : null
         }
         targetAnchor={
           selectedAlignment
-            ? targetAnchors.find((a) => a.anchorId === selectedAlignment.targetAnchorId) || null
+            ? anchorIdToTargetAnchor.get(selectedAlignment.targetAnchorId) || null
             : null
         }
         sourceAnchors={sourceAnchors}
