@@ -292,9 +292,10 @@ export default function PDFViewer({
    * Compute line-based highlight rectangle from rowNumber
    * Groups text items into lines by their top coordinate
    * @param rowNumber - 1-indexed line number within the page
+   * @param quoteText - Optional text to match for more accurate positioning
    * @returns Rectangle for the line, or null if not found
    */
-  const computeLineRect = (rowNumber: number): NormalizedRect | null => {
+  const computeLineRect = (rowNumber: number, quoteText?: string): NormalizedRect | null => {
     if (!pageTextContent || !canvasRef.current) return null;
 
     const { textContent, viewport } = pageTextContent;
@@ -302,7 +303,8 @@ export default function PDFViewer({
 
     interface LineGroup {
       key: number;
-      items: Array<{ x: number; top: number; bottom: number; width: number }>;
+      items: Array<{ x: number; top: number; bottom: number; width: number; text: string }>;
+      fullText: string;
     }
 
     const lineGroups: LineGroup[] = [];
@@ -323,33 +325,73 @@ export default function PDFViewer({
 
       // Use rounded top as grouping key (tolerant of small differences)
       const key = Math.round(top);
-      let group = lineGroups.find(g => Math.abs(g.key - key) <= 1);
+      let group = lineGroups.find(g => Math.abs(g.key - key) <= 2);
 
       if (!group) {
-        group = { key, items: [] };
+        group = { key, items: [], fullText: '' };
         lineGroups.push(group);
       }
 
-      group.items.push({ x, top, bottom, width });
+      group.items.push({ x, top, bottom, width, text: item.str });
     }
 
-    // Sort lines top to bottom
+    // Build full text for each line and sort top to bottom
+    lineGroups.forEach(group => {
+      const sortedItems = group.items.sort((a, b) => a.x - b.x);
+      group.fullText = sortedItems.map(item => item.text).join(' ').trim();
+    });
+
     lineGroups.sort((a, b) => a.key - b.key);
 
-    // Check if rowNumber is in range (1-indexed)
-    if (rowNumber < 1 || rowNumber > lineGroups.length) {
-      console.warn(`Row number ${rowNumber} out of range (page has ${lineGroups.length} lines)`);
+    // Filter out very short lines (likely page numbers or decorative elements)
+    // Only filter if we have enough lines to work with
+    const substantialLines = lineGroups.filter(g => g.fullText.length > 3 || lineGroups.length <= 5);
+
+    // If we have quote text, try to find the matching line first
+    let targetGroup: LineGroup | null = null;
+
+    if (quoteText && quoteText.trim().length > 0) {
+      const normalizedQuote = quoteText.trim().toLowerCase();
+
+      // Try exact match first
+      targetGroup = substantialLines.find(g =>
+        g.fullText.toLowerCase().includes(normalizedQuote)
+      ) || null;
+
+      // If no exact match, try fuzzy match (first 30 chars)
+      if (!targetGroup && normalizedQuote.length > 10) {
+        const quotePrefix = normalizedQuote.substring(0, Math.min(30, normalizedQuote.length));
+        targetGroup = substantialLines.find(g =>
+          g.fullText.toLowerCase().includes(quotePrefix)
+        ) || null;
+      }
+    }
+
+    // If no text match, fall back to row number
+    if (!targetGroup) {
+      // Check if rowNumber is in range (1-indexed)
+      if (rowNumber < 1 || rowNumber > substantialLines.length) {
+        console.warn(`Row number ${rowNumber} out of range (page has ${substantialLines.length} substantial lines out of ${lineGroups.length} total)`);
+        // Try using the original line groups as fallback
+        if (rowNumber >= 1 && rowNumber <= lineGroups.length) {
+          targetGroup = lineGroups[rowNumber - 1];
+        } else {
+          return null;
+        }
+      } else {
+        targetGroup = substantialLines[rowNumber - 1];
+      }
+    }
+
+    if (!targetGroup || targetGroup.items.length === 0) {
       return null;
     }
 
-    // Get the line group (convert to 0-indexed)
-    const group = lineGroups[rowNumber - 1];
-
     // Compute bounding box
-    const minX = Math.min(...group.items.map(i => i.x));
-    const maxX = Math.max(...group.items.map(i => i.x + i.width));
-    const minTop = Math.min(...group.items.map(i => i.top));
-    const maxBottom = Math.max(...group.items.map(i => i.bottom));
+    const minX = Math.min(...targetGroup.items.map(i => i.x));
+    const maxX = Math.max(...targetGroup.items.map(i => i.x + i.width));
+    const minTop = Math.min(...targetGroup.items.map(i => i.top));
+    const maxBottom = Math.max(...targetGroup.items.map(i => i.bottom));
 
     // Normalize to 0-1 coordinates
     return {
@@ -599,8 +641,9 @@ export default function PDFViewer({
               const canvas = canvasRef.current;
 
               // Use line-based highlighting if rowNumber is available
+              // Pass quote text for better matching across alignment types
               const rect = anchor.rowNumber != null
-                ? computeLineRect(anchor.rowNumber) || anchor.rect
+                ? computeLineRect(anchor.rowNumber, anchor.quote) || anchor.rect
                 : anchor.rect;
 
               return (
@@ -624,8 +667,9 @@ export default function PDFViewer({
               const canvas = canvasRef.current;
 
               // Use line-based highlighting if rowNumber is available
+              // Pass quote text for better matching across alignment types
               const rect = anchor.rowNumber != null
-                ? computeLineRect(anchor.rowNumber) || anchor.rect
+                ? computeLineRect(anchor.rowNumber, anchor.quote) || anchor.rect
                 : anchor.rect;
 
               return (
