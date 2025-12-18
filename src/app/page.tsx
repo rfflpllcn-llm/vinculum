@@ -52,6 +52,8 @@ export default function Home() {
   const [useCache, setUseCache] = useState(true);
   const [sourceDocCached, setSourceDocCached] = useState(false);
   const [targetDocCached, setTargetDocCached] = useState(false);
+  const [sourceLanguage, setSourceLanguage] = useState<string>('en');
+  const [targetLanguage, setTargetLanguage] = useState<string>('it');
 
   // Load available documents on mount
   useEffect(() => {
@@ -239,11 +241,26 @@ export default function Home() {
       const { parseJSONL } = await import('@/lib/alignmentParser');
       const chunks = await parseJSONL(chunksFile);
       const newChunkMap = new Map();
+      const languages = new Set<string>();
       chunks.forEach((chunk: any) => {
         newChunkMap.set(chunk.chunk_id, chunk);
+        if (chunk.language) {
+          languages.add(chunk.language);
+        }
       });
       setChunkMap(newChunkMap);
       console.log(`Loaded ${newChunkMap.size} chunks for search`);
+
+      // Extract language codes from chunks (usually two languages)
+      const langArray = Array.from(languages).sort();
+      if (langArray.length >= 2) {
+        setSourceLanguage(langArray[0]);
+        setTargetLanguage(langArray[1]);
+      } else if (langArray.length === 1) {
+        // If only one language found, use it for both (edge case)
+        setSourceLanguage(langArray[0]);
+        setTargetLanguage(langArray[0]);
+      }
 
       alert(
         `Loaded ${result.sourceAnchorsCount} source anchors, ${result.targetAnchorsCount} target anchors, and ${result.alignmentsCount} alignments!`
@@ -642,11 +659,15 @@ export default function Home() {
                 </div>
                 <AlignmentVisualization
                   alignments={filteredAlignments}
+                  allAlignments={alignments}
                   sourceAnchors={sourceAnchors}
                   targetAnchors={targetAnchors}
                   onSelect={handleAlignmentSelect}
                   selectedAlignmentId={selectedAlignment?.alignmentId}
                   onAudit={handleAuditClick}
+                  chunkMap={chunkMap}
+                  sourceLanguage={sourceLanguage}
+                  targetLanguage={targetLanguage}
                 />
               </div>
             </>

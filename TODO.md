@@ -36,7 +36,7 @@ TO BE REVIEWED
     handling of generated JSONL exports.
   - Test coverage for JSONL generation path (scope: medium, risk: medium)
     There’s no automated verification that python/wrapper.py plus generateInBackground produce consistent JSONL outputs for given fixture PDFs. Add an integration test that stubs the Drive service (local FS) and asserts that generated chunk/alignment counts, cache keys, and metadata JSON align.
-    Benefit: guards against regressions in the Python/Node boundary and cache metadata schema changes.
+    Benefit: guards against regressions i[chunks_2025-12-18.jsonl](../../../Downloads/chunks_2025-12-18.jsonl)n the Python/Node boundary and cache metadata schema changes.
   - 
 MINE
 

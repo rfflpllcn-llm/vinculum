@@ -10,21 +10,29 @@ import { useState, useMemo, useEffect } from 'react';
  */
 
 interface AlignmentVisualizationProps {
-  alignments: Alignment[];
+  alignments: Alignment[]; // Alignments to display (may be filtered)
+  allAlignments?: Alignment[]; // All alignments for download (unfiltered)
   sourceAnchors: Anchor[];
   targetAnchors: Anchor[];
   onSelect?: (alignment: Alignment) => void;
   selectedAlignmentId?: string;
   onAudit?: (alignment: Alignment) => void;
+  chunkMap?: Map<number, any>;
+  sourceLanguage?: string;
+  targetLanguage?: string;
 }
 
 export default function AlignmentVisualization({
   alignments,
+  allAlignments,
   sourceAnchors,
   targetAnchors,
   onSelect,
   selectedAlignmentId,
   onAudit,
+  chunkMap,
+  sourceLanguage,
+  targetLanguage,
 }: AlignmentVisualizationProps) {
   // Extract unique alignment types and initialize all as selected
   const uniqueAlignmentTypes = useMemo(() => {
@@ -135,6 +143,134 @@ export default function AlignmentVisualization({
     setSelectedTypes(new Set());
   };
 
+  /**
+   * Export alignments to JSONL format matching AlignmentPair schema
+   */
+  const handleDownloadAlignments = () => {
+    // Use all alignments for download if provided, otherwise use displayed alignments
+    const alignmentsToExport = allAlignments || alignments;
+    if (alignmentsToExport.length === 0) return;
+
+    // Build anchor ID to chunk ID reverse map from chunkMap
+    const anchorToChunkId = new Map<string, number>();
+    if (chunkMap) {
+      Array.from(chunkMap.entries()).forEach(([chunkId, chunk]) => {
+        // Find matching anchor by quote
+        const sourceMatch = sourceAnchors.find(a => a.quote === chunk.text);
+        const targetMatch = targetAnchors.find(a => a.quote === chunk.text);
+        if (sourceMatch) anchorToChunkId.set(sourceMatch.anchorId, chunkId);
+        if (targetMatch) anchorToChunkId.set(targetMatch.anchorId, chunkId);
+      });
+    }
+
+    // Convert alignments to AlignmentPair format
+    const alignmentPairs = alignmentsToExport.map((alignment, index) => {
+      const sourceAnchor = anchorIdToSourceAnchor.get(alignment.sourceAnchorId);
+      const targetAnchor = anchorIdToTargetAnchor.get(alignment.targetAnchorId);
+
+      // Get all chunk IDs for multi-chunk alignments
+      const srcChunkIds = (alignment.sourceAnchorIds || [alignment.sourceAnchorId])
+        .map(id => anchorToChunkId.get(id))
+        .filter((id): id is number => id !== undefined);
+
+      const tgtChunkIds = (alignment.targetAnchorIds || [alignment.targetAnchorId])
+        .map(id => anchorToChunkId.get(id))
+        .filter((id): id is number => id !== undefined);
+
+      // Fallback: use sequential IDs if chunk IDs not available
+      const src_chunks = srcChunkIds.length > 0 ? srcChunkIds : [index * 2];
+      const tgt_chunks = tgtChunkIds.length > 0 ? tgtChunkIds : [index * 2 + 1];
+
+      return {
+        alignment_id: index + 1,
+        pair_id: index + 1,
+        src_text: sourceAnchor?.quote || '',
+        tgt_text: targetAnchor?.quote || '',
+        src_lang: sourceLanguage,
+        tgt_lang: targetLanguage,
+        alignment_type: alignment.alignment_type || '1-1',
+        src_chunks,
+        tgt_chunks,
+        validation: {
+          is_valid_alignment: true,
+          confidence: alignment.confidence,
+          reason: 'Exported from Vinculum',
+          validation_success: true,
+          error: null,
+        },
+      };
+    });
+
+    // Convert to JSONL (one JSON object per line)
+    const jsonl = alignmentPairs.map(pair => JSON.stringify(pair)).join('\n');
+
+    // Create blob and download
+    const blob = new Blob([jsonl], { type: 'application/x-ndjson' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `alignments_${new Date().toISOString().split('T')[0]}.jsonl`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  /**
+   * Export chunks to JSONL format matching LanguageChunk schema
+   */
+  const handleDownloadChunks = () => {
+    // If we have the original chunkMap, export it
+    if (chunkMap && chunkMap.size > 0) {
+      const chunks = Array.from(chunkMap.values());
+      const jsonl = chunks.map(chunk => JSON.stringify(chunk)).join('\n');
+
+      const blob = new Blob([jsonl], { type: 'application/x-ndjson' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chunks_${new Date().toISOString().split('T')[0]}.jsonl`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      // Reconstruct chunks from anchors
+      const chunks: any[] = [];
+      let chunkId = 0;
+
+      sourceAnchors.forEach(anchor => {
+        chunks.push({
+          chunk_id: chunkId++,
+          text: anchor.quote,
+          language: sourceLanguage,
+          page: String(anchor.page).padStart(3, '0'),
+        });
+      });
+
+      targetAnchors.forEach(anchor => {
+        chunks.push({
+          chunk_id: chunkId++,
+          text: anchor.quote,
+          language: targetLanguage,
+          page: String(anchor.page).padStart(3, '0'),
+        });
+      });
+
+      const jsonl = chunks.map(chunk => JSON.stringify(chunk)).join('\n');
+
+      const blob = new Blob([jsonl], { type: 'application/x-ndjson' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chunks_${new Date().toISOString().split('T')[0]}.jsonl`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
   if (alignments.length === 0) {
     return (
       <div className="p-4 text-gray-500 text-sm">
@@ -146,9 +282,29 @@ export default function AlignmentVisualization({
   return (
     <div className="p-4 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold mb-2">
-          Alignments ({filteredAlignments.length} of {alignments.length})
-        </h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold">
+            Alignments ({filteredAlignments.length} of {alignments.length})
+          </h3>
+
+          {/* Download buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleDownloadChunks}
+              className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+              title="Download chunks in JSONL format"
+            >
+              ↓ Chunks
+            </button>
+            <button
+              onClick={handleDownloadAlignments}
+              className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+              title="Download alignments in JSONL format"
+            >
+              ↓ Alignments
+            </button>
+          </div>
+        </div>
 
         {/* Filter controls */}
         {uniqueAlignmentTypes.length > 0 && (
