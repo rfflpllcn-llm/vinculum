@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
     const metadataFieldsStr = (formData.get("metadataFields") as string) || "chunk_id,language,page";
     const runAlignment = formData.get("runAlignment") !== "false";
     const maxAlign = parseInt(formData.get("maxAlign") as string) || 3;
+    const keepAllAlignments = formData.get("keepAllAlignments") === "true";
 
     const metadataFields = metadataFieldsStr.split(",").map((f) => f.trim());
 
@@ -119,7 +120,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Check cache
-    const cached = await checkCache(drive, pdfHashes, textField, metadataFields);
+    let cached = await checkCache(drive, pdfHashes, textField, metadataFields);
+
+    // If alignment generation is requested but cached alignments are missing,
+    // invalidate the cache to ensure consistent regeneration
+    if (cached && runAlignment && (!cached.alignments || cached.alignments.length === 0)) {
+      console.log('Cache found but alignments missing - will regenerate everything');
+      cached = null; // Treat cache as invalid
+    }
 
     if (cached) {
       // Return cached results immediately
@@ -150,6 +158,7 @@ export async function POST(request: NextRequest) {
       metadataFields,
       runAlignment,
       maxAlign,
+      keepAllAlignments,
       pdfHashes,
       session.accessToken
     );
@@ -179,6 +188,7 @@ async function generateInBackground(
   metadataFields: string[],
   runAlignment: boolean,
   maxAlign: number,
+  keepAllAlignments: boolean,
   pdfHashes: Record<string, string>,
   accessToken: string
 ) {
@@ -210,6 +220,10 @@ async function generateInBackground(
 
     if (!runAlignment) {
       args.push("--no-alignment");
+    }
+
+    if (keepAllAlignments) {
+      args.push("--keep-all-alignments");
     }
 
     updateTask(taskId, {

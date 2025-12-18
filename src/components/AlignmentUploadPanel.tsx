@@ -40,6 +40,7 @@ export default function AlignmentUploadPanel({
   const [languages, setLanguages] = useState<string[]>(['en', 'it']);
   const [textField, setTextField] = useState('text');
   const [metadataFields, setMetadataFields] = useState('chunk_id,language,page');
+  const [keepAllAlignments, setKeepAllAlignments] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -126,7 +127,9 @@ export default function AlignmentUploadPanel({
 
     const alignments = normalizeAlignments(data.alignments);
     if (alignments.length === 0) {
-      throw new Error('No cached alignment files found.');
+      // Alignments not found in cache - this is not an error, just means we need to generate them
+      console.log('No cached alignment files found, but this is expected for new PDFs');
+      return null; // Signal that we should proceed with generation instead
     }
 
     const preferredPairs = languages.length >= 2
@@ -211,7 +214,11 @@ export default function AlignmentUploadPanel({
           setGenerating(false);
           setTaskId(null);
           try {
-            await useCachedFiles(data.result);
+            const result = await useCachedFiles(data.result);
+            if (result === null) {
+              // No alignment files generated - this shouldn't happen after completion
+              setError('Generation completed but no alignment files were created. Please try again.');
+            }
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load generated files');
           }
@@ -277,6 +284,7 @@ export default function AlignmentUploadPanel({
       formData.append('textField', textField);
       formData.append('metadataFields', metadataFields);
       formData.append('runAlignment', 'true');
+      formData.append('keepAllAlignments', keepAllAlignments.toString());
 
       // Start generation
       const response = await fetch('/api/alignments/generate', {
@@ -292,7 +300,11 @@ export default function AlignmentUploadPanel({
 
       if (data.cached) {
         try {
-          await useCachedFiles(data);
+          const result = await useCachedFiles(data);
+          if (result === null) {
+            // Cache found chunks but not alignments - tell user to regenerate
+            setError('Cached chunks found but alignment files are missing. The system will now generate alignment files. Please click "Generate Alignment Files" again to proceed.');
+          }
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to load cached files');
         } finally {
@@ -659,6 +671,20 @@ export default function AlignmentUploadPanel({
                   placeholder="chunk_id,language,page"
                 />
               </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                type="checkbox"
+                id="keepAllAlignments"
+                checked={keepAllAlignments}
+                onChange={(e) => setKeepAllAlignments(e.target.checked)}
+                disabled={generating}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="keepAllAlignments" className="text-sm font-medium text-gray-700 cursor-pointer">
+                Keep all alignments (including unmatched chunks)
+              </label>
             </div>
           </div>
 
