@@ -10,6 +10,11 @@ interface SearchResult {
   rowNumber?: number;
 }
 
+interface AnchorMetadata {
+  rowNumber?: number;
+  page: number;
+}
+
 interface SearchPanelProps {
   chunkMap: Map<number, any>;
   sourceAnchors: any[];
@@ -44,7 +49,29 @@ export default function SearchPanel({
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Search through chunks (find all matches)
+  // Build lookup map from (quote + page) to anchor metadata - O(M) once
+  // This avoids O(N*M) linear searches through anchors on every search
+  // Using composite key handles duplicate texts on different pages correctly
+  const anchorLookup = useMemo(() => {
+    const map = new Map<string, AnchorMetadata>();
+
+    // Process all anchors once and store metadata by composite key
+    [...sourceAnchors, ...targetAnchors].forEach(anchor => {
+      if (anchor.quote) {
+        // Create composite key: "text|page" to handle duplicate texts
+        const pageStr = String(anchor.page).padStart(3, '0'); // Normalize page format to match chunk.page
+        const key = `${anchor.quote}|${pageStr}`;
+        map.set(key, {
+          rowNumber: anchor.rowNumber,
+          page: anchor.page,
+        });
+      }
+    });
+
+    return map;
+  }, [sourceAnchors, targetAnchors]);
+
+  // Search through chunks (find all matches) - O(N) instead of O(N*M)
   const allSearchResults = useMemo(() => {
     if (!searchQuery.trim() || chunkMap.size === 0) return [];
 
@@ -53,22 +80,22 @@ export default function SearchPanel({
 
     chunkMap.forEach((chunk, chunkId) => {
       if (chunk.text && chunk.text.toLowerCase().includes(query)) {
-        // Find corresponding anchor to get rowNumber
-        const allAnchors = [...sourceAnchors, ...targetAnchors];
-        const anchor = allAnchors.find(a => a.quote === chunk.text);
+        // O(1) lookup using composite key instead of O(M) linear search
+        const key = `${chunk.text}|${chunk.page}`;
+        const metadata = anchorLookup.get(key);
 
         results.push({
           chunkId,
           text: chunk.text,
           page: chunk.page,
           language: chunk.language,
-          rowNumber: anchor?.rowNumber,
+          rowNumber: metadata?.rowNumber,
         });
       }
     });
 
     return results;
-  }, [searchQuery, chunkMap, sourceAnchors, targetAnchors]);
+  }, [searchQuery, chunkMap, anchorLookup]);
 
   // Paginated results (only show first N)
   const displayedResults = useMemo(() => {
