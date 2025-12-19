@@ -34,6 +34,8 @@ def create_temp_config(
     metadata_fields: Optional[List[str]] = None,
     max_align: int = 3,
     keep_all_alignments: bool = False,
+    alignment_source: Optional[str] = None,
+    alignment_targets: Optional[List[str]] = None,
 ) -> str:
     """Create a temporary config file for the pipeline."""
 
@@ -61,6 +63,12 @@ def create_temp_config(
             "is_split": True
         }
     }
+
+    if alignment_source and alignment_targets:
+        config["languages"] = {
+            "source": alignment_source,
+            "targets": alignment_targets,
+        }
 
     # Create temp config file
     config_path = os.path.join(base_data_dir, "temp_config.yaml")
@@ -120,6 +128,7 @@ def generate_jsonl(
     run_alignment: bool = True,
     max_align: int = 3,
     keep_all_alignments: bool = False,
+    alignment_runs: Optional[List[Dict[str, List[str]]]] = None,
 ) -> Dict:
     """
     Generate JSONL files from PDFs.
@@ -212,6 +221,14 @@ def generate_jsonl(
         if not pipeline.run_merge_to_jsonl(text_field, metadata_fields):
             raise Exception("Failed to merge markdown to JSONL")
 
+        # Copy chunks.jsonl to source directory
+        experiments_dir = os.path.join(temp_dir, "experiments")
+        source_file = os.path.join(experiments_dir, "output.jsonl")
+        dest_file = os.path.join(temp_dir, subdir_name, "chunks.jsonl")
+        if os.path.exists(source_file):
+            shutil.copy2(source_file, dest_file)
+            print(f"Copied chunks to {dest_file}")
+
         # Run alignment if requested
         alignment_failed = False
         if run_alignment:
@@ -225,28 +242,43 @@ def generate_jsonl(
                 print("Skipping alignment - chunks.jsonl will still be generated")
                 alignment_failed = True
 
-            if not alignment_failed:
-                if not pipeline.run_bert_alignment():
-                    print("Warning: BERT alignment failed, continuing without alignment")
-                    alignment_failed = True
+            def copy_alignment_files(source_lang: str, target_langs: List[str]) -> None:
+                if not hasattr(pipeline, "last_experiment_dir"):
+                    return
+                for lang_tgt in target_langs:
+                    aligned_pattern = f"*_aligned-{source_lang}-{lang_tgt}.jsonl"
+                    aligned_files = list(pipeline.last_experiment_dir.glob(aligned_pattern))
+                    if not aligned_files:
+                        continue
+                    aligned_file = aligned_files[0]
+                    output_file = Path(temp_dir) / subdir_name / f"{source_lang}-{lang_tgt}.jsonl"
+                    shutil.copy2(aligned_file, output_file)
 
-        # Apply production mode to move files to final location
-        # We try this regardless of alignment status since we have chunks.jsonl
-        try:
-            if alignment_failed and run_alignment:
-                # Alignment was requested but failed - manually move chunks.jsonl
-                experiments_dir = os.path.join(temp_dir, "experiments")
-                source_file = os.path.join(experiments_dir, "output.jsonl")
-                dest_file = os.path.join(temp_dir, subdir_name, "chunks.jsonl")
-                if os.path.exists(source_file):
-                    shutil.copy2(source_file, dest_file)
-                    print(f"Copied chunks to {dest_file}")
-            else:
-                # Normal production mode
-                if not pipeline.apply_production_mode():
-                    print("Warning: Production mode failed")
-        except Exception as e:
-            print(f"Warning: Production mode error: {e}")
+            if not alignment_failed:
+                if alignment_runs:
+                    for run in alignment_runs:
+                        source_lang = run.get("source")
+                        target_langs = run.get("targets", [])
+                        if not source_lang or not target_langs:
+                            continue
+                        pipeline.config["languages"] = {
+                            "source": source_lang,
+                            "targets": target_langs,
+                        }
+                        if not pipeline.run_bert_alignment():
+                            print("Warning: BERT alignment failed, continuing without alignment")
+                            alignment_failed = True
+                            break
+                        copy_alignment_files(source_lang, target_langs)
+                else:
+                    if not pipeline.run_bert_alignment():
+                        print("Warning: BERT alignment failed, continuing without alignment")
+                        alignment_failed = True
+                    else:
+                        source_lang = getattr(pipeline, "detected_language_src", "")
+                        target_langs = list(getattr(pipeline, "detected_language_tgt", ()))
+                        if source_lang and target_langs:
+                            copy_alignment_files(source_lang, target_langs)
 
         # Collect output files
         source_dir = os.path.join(temp_dir, subdir_name)
@@ -345,6 +377,12 @@ def main():
         action="store_true",
         help="Keep all alignments including unmatched"
     )
+    parser.add_argument(
+        "--alignment-runs",
+        type=str,
+        default="",
+        help="JSON list of alignment runs with source/targets"
+    )
 
     args = parser.parse_args()
 
@@ -364,6 +402,17 @@ def main():
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
 
+    alignment_runs = None
+    if args.alignment_runs:
+        try:
+            alignment_runs = json.loads(args.alignment_runs)
+        except json.JSONDecodeError as e:
+            print(json.dumps({
+                "success": False,
+                "error": f"Invalid JSON for alignment-runs: {e}"
+            }))
+            sys.exit(1)
+
     # Generate JSONL files
     result = generate_jsonl(
         pdf_files=pdf_files,
@@ -373,6 +422,7 @@ def main():
         run_alignment=not args.no_alignment,
         max_align=args.max_align,
         keep_all_alignments=args.keep_all_alignments,
+        alignment_runs=alignment_runs,
     )
 
     # Output result as JSON

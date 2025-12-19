@@ -56,6 +56,13 @@ export default function Home() {
   const [targetDocCached, setTargetDocCached] = useState(false);
   const [sourceLanguage, setSourceLanguage] = useState<string>('en');
   const [targetLanguage, setTargetLanguage] = useState<string>('it');
+  const [originalLanguage, setOriginalLanguage] = useState<string | null>(null);
+  const [alignmentMeta, setAlignmentMeta] = useState<Array<{
+    driveFileId: string;
+    filename: string;
+    sourceLang?: string;
+    targetLang?: string;
+  }>>([]);
 
   // Load available documents on mount
   useEffect(() => {
@@ -171,7 +178,16 @@ export default function Home() {
     sourceDoc: Document,
     targetDoc: Document,
     sourceLanguageHint?: string,
-    targetLanguageHint?: string
+    targetLanguageHint?: string,
+    options?: {
+      alignmentMeta?: Array<{
+        driveFileId: string;
+        filename: string;
+        sourceLang?: string;
+        targetLang?: string;
+      }>;
+      originalLanguage?: string | null;
+    }
   ) => {
     try {
       // Generate persistent document IDs
@@ -273,6 +289,14 @@ export default function Home() {
         setSourceLanguage(langArray[0]);
         setTargetLanguage(langArray[0]);
       }
+
+      if (options?.alignmentMeta) {
+        setAlignmentMeta(options.alignmentMeta);
+      } else {
+        setAlignmentMeta([]);
+      }
+
+      setOriginalLanguage(options?.originalLanguage || null);
 
       // All data loaded successfully
       setLoadingAlignmentData(false);
@@ -406,6 +430,8 @@ export default function Home() {
     setSearchHighlightAnchor(null);
     setSourceDocCached(false);
     setTargetDocCached(false);
+    setAlignmentMeta([]);
+    setOriginalLanguage(null);
   };
 
   // Build memoized lookup maps for O(1) anchor access
@@ -774,6 +800,11 @@ export default function Home() {
         targetAnchors={targetAnchors}
         sourceLabel={sourceDocument?.filename || "Source"}
         targetLabel={targetDocument?.filename || "Target"}
+        sourceLanguageCode={sourceLanguage}
+        targetLanguageCode={targetLanguage}
+        originalLanguageCode={originalLanguage}
+        alignmentMeta={alignmentMeta}
+        chunkMap={chunkMap}
       />
     </main>
   );

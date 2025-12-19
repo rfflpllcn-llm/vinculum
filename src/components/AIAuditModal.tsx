@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Modal from './Modal';
 import { Anchor, Alignment, AITask } from '@/types/schemas';
 import { authFetch } from '@/lib/authFetch';
-import { buildAlignmentAuditPrompt } from '@/lib/aiPrompts';
+import { buildTripleAlignmentAuditPrompt } from '@/lib/aiPrompts';
 
 /**
  * AI Audit Modal Component
@@ -21,6 +21,16 @@ interface AIAuditModalProps {
   targetAnchors: Anchor[];
   sourceLabel?: string;
   targetLabel?: string;
+  sourceLanguageCode?: string;
+  targetLanguageCode?: string;
+  originalLanguageCode?: string | null;
+  alignmentMeta?: Array<{
+    driveFileId: string;
+    filename: string;
+    sourceLang?: string;
+    targetLang?: string;
+  }>;
+  chunkMap?: Map<number, any>;
 }
 
 export default function AIAuditModal({
@@ -33,6 +43,11 @@ export default function AIAuditModal({
   targetAnchors,
   sourceLabel = "Source",
   targetLabel = "Target",
+  sourceLanguageCode,
+  targetLanguageCode,
+  originalLanguageCode,
+  alignmentMeta = [],
+  chunkMap,
 }: AIAuditModalProps) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -63,6 +78,99 @@ export default function AIAuditModal({
     setEditableTargetText(targetQuote);
   }, [targetQuote]);
 
+  const anchorIdToChunkId = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!chunkMap) return map;
+
+    Array.from(chunkMap.entries()).forEach(([chunkId, chunk]) => {
+      const sourceMatch = sourceAnchors.find(a => a.quote === chunk.text);
+      const targetMatch = targetAnchors.find(a => a.quote === chunk.text);
+      if (sourceMatch) map.set(sourceMatch.anchorId, chunkId);
+      if (targetMatch) map.set(targetMatch.anchorId, chunkId);
+    });
+    return map;
+  }, [chunkMap, sourceAnchors, targetAnchors]);
+
+  const alignmentCache = useRef<Map<string, Map<number, Set<number>>>>(new Map());
+
+  const parseJsonlText = (text: string) => {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      if (typeof parsed === 'string') {
+        return parseJsonlText(parsed);
+      }
+      if (parsed && typeof parsed === 'object') {
+        return [parsed];
+      }
+    } catch {
+      // Fall through to line-based parsing.
+    }
+
+    return text
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  };
+
+  const extractChunkIds = (chunks: Array<any> | undefined) => {
+    if (!Array.isArray(chunks)) return [];
+    return chunks
+      .map((chunk) => (typeof chunk === 'number' ? chunk : chunk?.chunk_id))
+      .filter((id): id is number => typeof id === 'number');
+  };
+
+  const loadAlignmentMap = async (sourceLang: string, targetLang: string) => {
+    const meta = alignmentMeta.find(
+      (entry) =>
+        entry.sourceLang?.toLowerCase() === sourceLang &&
+        entry.targetLang?.toLowerCase() === targetLang
+    );
+    if (!meta?.driveFileId) {
+      return null;
+    }
+
+    if (alignmentCache.current.has(meta.driveFileId)) {
+      return alignmentCache.current.get(meta.driveFileId) || null;
+    }
+
+    const response = await authFetch(`/api/documents/${meta.driveFileId}`);
+    if (!response.ok) {
+      return null;
+    }
+
+    const buffer = await response.arrayBuffer();
+    const text = new TextDecoder().decode(buffer);
+    const entries = parseJsonlText(text);
+    const targetToSource = new Map<number, Set<number>>();
+
+    entries.forEach((entry) => {
+      const srcIds = extractChunkIds(entry?.src_chunks);
+      const tgtIds = extractChunkIds(entry?.tgt_chunks);
+      if (srcIds.length === 0 || tgtIds.length === 0) {
+        return;
+      }
+      tgtIds.forEach((tgtId) => {
+        const set = targetToSource.get(tgtId) || new Set<number>();
+        srcIds.forEach((srcId) => set.add(srcId));
+        targetToSource.set(tgtId, set);
+      });
+    });
+
+    alignmentCache.current.set(meta.driveFileId, targetToSource);
+    return targetToSource;
+  };
+
   const handleAudit = async () => {
     if (!sourceAnchor || !targetAnchor) return;
 
@@ -74,9 +182,72 @@ export default function AIAuditModal({
 
     try {
       if (task === 'audit') {
-        const promptText = buildAuditPrompt({
-          srcLanguage: sourceLabel,
-          tgtLanguage: targetLabel,
+        if (!chunkMap) {
+          throw new Error('Chunks are not available for AI audit.');
+        }
+        if (!alignment) {
+          throw new Error('Alignment data is missing for AI audit.');
+        }
+        if (!sourceLanguageCode || !targetLanguageCode || !originalLanguageCode) {
+          throw new Error('Original/source/target language codes are required.');
+        }
+
+        const normalizedSourceLang = sourceLanguageCode.toLowerCase();
+        const normalizedTargetLang = targetLanguageCode.toLowerCase();
+        const normalizedOriginalLang = originalLanguageCode.toLowerCase();
+
+        const sourceAnchorIds = alignment.sourceAnchorIds || [alignment.sourceAnchorId];
+        const targetAnchorIds = alignment.targetAnchorIds || [alignment.targetAnchorId];
+
+        const sourceChunkIds = sourceAnchorIds
+          .map((id) => anchorIdToChunkId.get(id))
+          .filter((id): id is number => id !== undefined);
+        const targetChunkIds = targetAnchorIds
+          .map((id) => anchorIdToChunkId.get(id))
+          .filter((id): id is number => id !== undefined);
+
+        const originalChunkIds = new Set<number>();
+
+        if (normalizedOriginalLang === normalizedSourceLang) {
+          sourceChunkIds.forEach((id) => originalChunkIds.add(id));
+        } else {
+          const sourceMap = await loadAlignmentMap(normalizedOriginalLang, normalizedSourceLang);
+          if (!sourceMap) {
+            throw new Error(`Missing alignments for ${normalizedOriginalLang}-${normalizedSourceLang}.`);
+          }
+          sourceChunkIds.forEach((id) => {
+            sourceMap.get(id)?.forEach((srcId) => originalChunkIds.add(srcId));
+          });
+        }
+
+        if (normalizedOriginalLang === normalizedTargetLang) {
+          targetChunkIds.forEach((id) => originalChunkIds.add(id));
+        } else {
+          const targetMap = await loadAlignmentMap(normalizedOriginalLang, normalizedTargetLang);
+          if (!targetMap) {
+            throw new Error(`Missing alignments for ${normalizedOriginalLang}-${normalizedTargetLang}.`);
+          }
+          targetChunkIds.forEach((id) => {
+            targetMap.get(id)?.forEach((srcId) => originalChunkIds.add(srcId));
+          });
+        }
+
+        const originalChunks = Array.from(originalChunkIds)
+          .map((id) => chunkMap.get(id))
+          .filter((chunk) => chunk && chunk.language === normalizedOriginalLang)
+          .sort((a, b) => a.chunk_id - b.chunk_id);
+
+        if (originalChunks.length === 0) {
+          throw new Error('No original text found for the selected alignment.');
+        }
+
+        const orgText = originalChunks.map((chunk) => chunk.text).join('\n');
+
+        const promptText = buildTripleAlignmentAuditPrompt({
+          orgLanguage: normalizedOriginalLang,
+          srcLanguage: normalizedSourceLang,
+          tgtLanguage: normalizedTargetLang,
+          orgText,
           srcText: editableSourceText,
           tgtText: editableTargetText,
         });
@@ -283,7 +454,6 @@ function buildContextQuote(anchor: Anchor, anchors: Anchor[], radius: number): s
   return ordered.slice(start, end).map((item) => item.quote).join("\n");
 }
 
-const buildAuditPrompt = buildAlignmentAuditPrompt;
 
 /**
  * Simple Markdown Renderer

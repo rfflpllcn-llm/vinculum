@@ -52,6 +52,13 @@ const formatLanguageLabel = (code: string) => {
 
 type UploadMode = 'upload' | 'generate';
 
+type AlignmentMeta = {
+  driveFileId: string;
+  filename: string;
+  sourceLang?: string;
+  targetLang?: string;
+};
+
 interface AlignmentUploadPanelProps {
   documents: Document[];
   onUpload: (
@@ -60,7 +67,11 @@ interface AlignmentUploadPanelProps {
     sourceDoc: Document,
     targetDoc: Document,
     sourceLanguage?: string,
-    targetLanguage?: string
+    targetLanguage?: string,
+    options?: {
+      alignmentMeta?: AlignmentMeta[];
+      originalLanguage?: string | null;
+    }
   ) => Promise<void>;
 }
 
@@ -302,7 +313,11 @@ export default function AlignmentUploadPanel({
       sourceDoc,
       targetDoc,
       finalAlignment.sourceLang || visibleLanguages[0],
-      finalAlignment.targetLang || visibleLanguages[1]
+      finalAlignment.targetLang || visibleLanguages[1],
+      {
+        alignmentMeta: alignments,
+        originalLanguage,
+      }
     );
   };
 
@@ -395,23 +410,38 @@ export default function AlignmentUploadPanel({
       return;
     }
 
+    if (!originalLanguage) {
+      setError('Please select the original language');
+      return;
+    }
+
     // Validate exactly 2 visible PDFs for dual view
     if (visibleLanguages.length !== 2) {
       setError('Please select exactly 2 PDFs to display in dual view');
       return;
     }
 
+    if (!visibleLanguages.every(lang => languages.includes(lang))) {
+      setError('Visible languages must be part of the selected language list');
+      return;
+    }
+
+    if (!languages.includes(originalLanguage)) {
+      setError('Original language must be part of the selected language list');
+      return;
+    }
+
     // Validation based on source
     if (pdfSource === 'drive') {
-      const missingDocs = visibleLanguages.filter(lang => !pdfDocIds[lang]);
+      const missingDocs = languages.filter(lang => !pdfDocIds[lang]);
       if (missingDocs.length > 0) {
-        setError(`Please select PDF documents for visible languages: ${missingDocs.join(', ')}`);
+        setError(`Please select PDF documents for all languages: ${missingDocs.join(', ')}`);
         return;
       }
     } else {
-      const missingPdfs = visibleLanguages.filter(lang => !pdfFiles[lang]);
+      const missingPdfs = languages.filter(lang => !pdfFiles[lang]);
       if (missingPdfs.length > 0) {
-        setError(`Missing PDF files for visible languages: ${missingPdfs.join(', ')}`);
+        setError(`Missing PDF files for all languages: ${missingPdfs.join(', ')}`);
         return;
       }
     }
@@ -428,18 +458,12 @@ export default function AlignmentUploadPanel({
       formData.append('pdfSource', pdfSource);
 
       if (pdfSource === 'drive') {
-        // Send Drive file IDs for visible languages only
-        const visiblePdfDocIds: Record<string, string> = {};
-        visibleLanguages.forEach((lang) => {
-          if (pdfDocIds[lang]) {
-            visiblePdfDocIds[lang] = pdfDocIds[lang];
-          }
-        });
-        formData.append('pdfDocIds', JSON.stringify(visiblePdfDocIds));
+        // Send Drive file IDs for all selected languages
+        formData.append('pdfDocIds', JSON.stringify(pdfDocIds));
       } else {
-        // Send uploaded files for visible languages only
+        // Send uploaded files for all selected languages
         const pdfFilesConfig: Record<string, string> = {};
-        visibleLanguages.forEach((lang) => {
+        languages.forEach((lang) => {
           const fieldName = `pdf_${lang}`;
           formData.append(fieldName, pdfFiles[lang]);
           pdfFilesConfig[lang] = fieldName;
@@ -567,10 +591,13 @@ export default function AlignmentUploadPanel({
       lang === oldLang ? newLang : lang
     );
 
+    const updatedOriginalLanguage = originalLanguage === oldLang ? newLang : originalLanguage;
+
     setLanguages(updatedLanguages);
     setPdfDocIds(updatedPdfDocIds);
     setPdfFiles(updatedPdfFiles);
     setVisibleLanguages(updatedVisibleLanguages);
+    setOriginalLanguage(updatedOriginalLanguage || null);
     setError(null);
   };
 
@@ -586,6 +613,10 @@ export default function AlignmentUploadPanel({
 
     // Remove from visible languages if it was visible
     setVisibleLanguages(visibleLanguages.filter(l => l !== lang));
+
+    if (originalLanguage === lang) {
+      setOriginalLanguage(null);
+    }
   };
 
   // Download JSONL file helper
@@ -595,7 +626,7 @@ export default function AlignmentUploadPanel({
   };
 
   const canUpload = sourceDocId && targetDocId && chunksFile && alignmentsFile && !uploading;
-  const canGenerate = languages.length >= 2 && !generating &&
+  const canGenerate = languages.length >= 2 && !!originalLanguage && !generating &&
     (pdfSource === 'drive'
       ? languages.every(lang => pdfDocIds[lang])
       : languages.every(lang => pdfFiles[lang]));

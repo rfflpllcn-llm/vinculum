@@ -23,6 +23,11 @@ export interface CachedJSONL {
   }>;
 }
 
+export interface AlignmentRun {
+  source: string;
+  targets: string[];
+}
+
 export interface CacheMetadata {
   pdfHashes: Record<string, string>; // language -> hash
   chunksFileId: string;
@@ -39,6 +44,7 @@ export interface CacheMetadata {
   config: {
     textField: string;
     metadataFields: string[];
+    alignmentRuns?: AlignmentRun[];
   };
 }
 
@@ -55,10 +61,31 @@ export function hashFileContent(buffer: ArrayBuffer): string {
 /**
  * Get cache key for a set of PDFs
  */
-export function getCacheKey(pdfHashes: Record<string, string>): string {
+function normalizeAlignmentRuns(runs?: AlignmentRun[]): AlignmentRun[] {
+  if (!runs) return [];
+  return runs
+    .map((run) => ({
+      source: run.source,
+      targets: [...run.targets].sort(),
+    }))
+    .sort((a, b) => {
+      const sourceCompare = a.source.localeCompare(b.source);
+      if (sourceCompare !== 0) return sourceCompare;
+      return a.targets.join(",").localeCompare(b.targets.join(","));
+    });
+}
+
+export function getCacheKey(
+  pdfHashes: Record<string, string>,
+  alignmentRuns?: AlignmentRun[]
+): string {
   // Sort languages alphabetically for consistent key
   const sortedLangs = Object.keys(pdfHashes).sort();
   const hashParts = sortedLangs.map((lang) => `${lang}:${pdfHashes[lang]}`);
+  const normalizedRuns = normalizeAlignmentRuns(alignmentRuns);
+  if (normalizedRuns.length > 0) {
+    hashParts.push(`align:${JSON.stringify(normalizedRuns)}`);
+  }
   return crypto
     .createHash("sha256")
     .update(hashParts.join("|"))
@@ -73,10 +100,11 @@ export async function checkCache(
   drive: DriveService,
   pdfHashes: Record<string, string>,
   textField: string = "text",
-  metadataFields: string[] = ["chunk_id", "language", "page"]
+  metadataFields: string[] = ["chunk_id", "language", "page"],
+  alignmentRuns?: AlignmentRun[]
 ): Promise<CachedJSONL | null> {
   try {
-    const cacheKey = getCacheKey(pdfHashes);
+    const cacheKey = getCacheKey(pdfHashes, alignmentRuns);
     const metadataFilename = `${cacheKey}_metadata.json`;
 
     // Try to load metadata file
@@ -97,6 +125,11 @@ export async function checkCache(
         JSON.stringify(metadataFields.sort())
     ) {
       // Configuration mismatch, cache invalid
+      return null;
+    }
+    const normalizedRuns = normalizeAlignmentRuns(alignmentRuns);
+    const cachedRuns = normalizeAlignmentRuns(cacheMetadata.config.alignmentRuns);
+    if (JSON.stringify(normalizedRuns) !== JSON.stringify(cachedRuns)) {
       return null;
     }
 
@@ -144,9 +177,10 @@ export async function saveToCache(
     count: number;
   }>,
   textField: string = "text",
-  metadataFields: string[] = ["chunk_id", "language", "page"]
+  metadataFields: string[] = ["chunk_id", "language", "page"],
+  alignmentRuns?: AlignmentRun[]
 ): Promise<CachedJSONL> {
-  const cacheKey = getCacheKey(pdfHashes);
+  const cacheKey = getCacheKey(pdfHashes, alignmentRuns);
 
   // Save chunks.jsonl
   const chunksFilename = `${cacheKey}_chunks.jsonl`;
@@ -186,6 +220,7 @@ export async function saveToCache(
     config: {
       textField,
       metadataFields,
+      alignmentRuns: alignmentRuns ? normalizeAlignmentRuns(alignmentRuns) : [],
     },
   };
 
