@@ -81,6 +81,8 @@ export default function AlignmentUploadPanel({
   const [pdfFiles, setPdfFiles] = useState<Record<string, File>>({});
   const [pdfDocIds, setPdfDocIds] = useState<Record<string, string>>({}); // For drive mode
   const [languages, setLanguages] = useState<string[]>(['en', 'it']);
+  const [originalLanguage, setOriginalLanguage] = useState<string | null>(null); // Track which language is the original
+  const [visibleLanguages, setVisibleLanguages] = useState<string[]>(['en', 'it']); // Track which languages are visible in dual view (max 2)
   const [textField, setTextField] = useState('text');
   const [metadataFields, setMetadataFields] = useState('chunk_id,language,page');
   const [keepAllAlignments, setKeepAllAlignments] = useState(true);
@@ -319,17 +321,23 @@ export default function AlignmentUploadPanel({
       return;
     }
 
+    // Validate exactly 2 visible PDFs for dual view
+    if (visibleLanguages.length !== 2) {
+      setError('Please select exactly 2 PDFs to display in dual view');
+      return;
+    }
+
     // Validation based on source
     if (pdfSource === 'drive') {
-      const missingDocs = languages.filter(lang => !pdfDocIds[lang]);
+      const missingDocs = visibleLanguages.filter(lang => !pdfDocIds[lang]);
       if (missingDocs.length > 0) {
-        setError(`Please select PDF documents for: ${missingDocs.join(', ')}`);
+        setError(`Please select PDF documents for visible languages: ${missingDocs.join(', ')}`);
         return;
       }
     } else {
-      const missingPdfs = languages.filter(lang => !pdfFiles[lang]);
+      const missingPdfs = visibleLanguages.filter(lang => !pdfFiles[lang]);
       if (missingPdfs.length > 0) {
-        setError(`Missing PDF files for: ${missingPdfs.join(', ')}`);
+        setError(`Missing PDF files for visible languages: ${missingPdfs.join(', ')}`);
         return;
       }
     }
@@ -363,6 +371,11 @@ export default function AlignmentUploadPanel({
       formData.append('metadataFields', metadataFields);
       formData.append('runAlignment', 'true');
       formData.append('keepAllAlignments', keepAllAlignments.toString());
+
+      // Send original language information if specified
+      if (originalLanguage) {
+        formData.append('originalLanguage', originalLanguage);
+      }
 
       // Start generation
       const response = await authFetch('/api/alignments/generate', {
@@ -398,6 +411,18 @@ export default function AlignmentUploadPanel({
     }
   };
 
+  const toggleLanguageVisibility = (lang: string) => {
+    if (visibleLanguages.includes(lang)) {
+      // Remove from visible
+      setVisibleLanguages(visibleLanguages.filter(l => l !== lang));
+    } else {
+      // Add to visible (if space available)
+      if (visibleLanguages.length < 2) {
+        setVisibleLanguages([...visibleLanguages, lang]);
+      }
+    }
+  };
+
   const addLanguage = () => {
     const nextLang = getNextAvailableLanguage(languages);
     if (!nextLang) {
@@ -405,6 +430,12 @@ export default function AlignmentUploadPanel({
       return;
     }
     setLanguages([...languages, nextLang]);
+
+    // Auto-check visibility if fewer than 2 are currently visible
+    if (visibleLanguages.length < 2) {
+      setVisibleLanguages([...visibleLanguages, nextLang]);
+    }
+
     setError(null);
   };
 
@@ -441,9 +472,15 @@ export default function AlignmentUploadPanel({
     }
     delete updatedPdfFiles[oldLang];
 
+    // Preserve visibility: if old language was visible, make new language visible
+    const updatedVisibleLanguages = visibleLanguages.map(lang =>
+      lang === oldLang ? newLang : lang
+    );
+
     setLanguages(updatedLanguages);
     setPdfDocIds(updatedPdfDocIds);
     setPdfFiles(updatedPdfFiles);
+    setVisibleLanguages(updatedVisibleLanguages);
     setError(null);
   };
 
@@ -456,6 +493,9 @@ export default function AlignmentUploadPanel({
     const newPdfFiles = { ...pdfFiles };
     delete newPdfFiles[lang];
     setPdfFiles(newPdfFiles);
+
+    // Remove from visible languages if it was visible
+    setVisibleLanguages(visibleLanguages.filter(l => l !== lang));
   };
 
   // Download JSONL file helper
@@ -717,7 +757,12 @@ export default function AlignmentUploadPanel({
                 // From Google Drive
                 <>
                   {languages.map((lang, index) => (
-                    <div key={index} className="flex gap-2 items-end">
+                    <div
+                      key={index}
+                      className={`flex gap-2 items-end p-2 rounded transition-colors ${
+                        visibleLanguages.includes(lang) ? 'bg-green-50 border border-green-200' : ''
+                      }`}
+                    >
                       <div className="w-40">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Language
@@ -753,6 +798,28 @@ export default function AlignmentUploadPanel({
                           ))}
                         </select>
                       </div>
+                      <div className="flex items-center gap-3 pb-2">
+                        <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={originalLanguage === lang}
+                            onChange={(e) => setOriginalLanguage(e.target.checked ? lang : null)}
+                            disabled={generating}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Original</span>
+                        </label>
+                        <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={visibleLanguages.includes(lang)}
+                            onChange={() => toggleLanguageVisibility(lang)}
+                            disabled={generating || (!visibleLanguages.includes(lang) && visibleLanguages.length >= 2)}
+                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500 disabled:opacity-50"
+                          />
+                          <span className="text-sm text-gray-700">Visible</span>
+                        </label>
+                      </div>
                       {languages.length > 2 && (
                         <button
                           onClick={() => removeLanguage(lang)}
@@ -769,7 +836,12 @@ export default function AlignmentUploadPanel({
                 // Upload from Computer
                 <>
                   {languages.map((lang, index) => (
-                    <div key={index} className="flex gap-2 items-end">
+                    <div
+                      key={index}
+                      className={`flex gap-2 items-end p-2 rounded transition-colors ${
+                        visibleLanguages.includes(lang) ? 'bg-green-50 border border-green-200' : ''
+                      }`}
+                    >
                       <div className="w-40">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Language
@@ -809,6 +881,28 @@ export default function AlignmentUploadPanel({
                           </p>
                         )}
                       </div>
+                      <div className="flex items-center gap-3 pb-2">
+                        <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={originalLanguage === lang}
+                            onChange={(e) => setOriginalLanguage(e.target.checked ? lang : null)}
+                            disabled={generating}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Original</span>
+                        </label>
+                        <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={visibleLanguages.includes(lang)}
+                            onChange={() => toggleLanguageVisibility(lang)}
+                            disabled={generating || (!visibleLanguages.includes(lang) && visibleLanguages.length >= 2)}
+                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500 disabled:opacity-50"
+                          />
+                          <span className="text-sm text-gray-700">Visible</span>
+                        </label>
+                      </div>
                       {languages.length > 2 && (
                         <button
                           onClick={() => removeLanguage(lang)}
@@ -830,6 +924,18 @@ export default function AlignmentUploadPanel({
               >
                 + Add Another Language
               </button>
+
+              {/* Selection Counter */}
+              <div className={`text-sm p-3 rounded-lg border ${
+                visibleLanguages.length === 2
+                  ? 'bg-green-50 border-green-300 text-green-800'
+                  : 'bg-yellow-50 border-yellow-300 text-yellow-800'
+              }`}>
+                <span className="font-medium">{visibleLanguages.length} of 2 PDFs selected for dual view</span>
+                {visibleLanguages.length !== 2 && (
+                  <span className="ml-2">— Please select exactly 2 PDFs to display side-by-side</span>
+                )}
+              </div>
             </div>
           </div>
 

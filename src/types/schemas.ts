@@ -37,6 +37,7 @@ export interface Document {
   filename: string;
   mimeType: MimeType;
   pageCount: number;
+  isOriginal?: boolean; // Indicates if this document is in the original language
   createdAt: string; // ISO-8601
   updatedAt: string; // ISO-8601
 }
