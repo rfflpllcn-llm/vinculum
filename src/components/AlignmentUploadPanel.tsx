@@ -98,6 +98,9 @@ export default function AlignmentUploadPanel({
   const [generatedAlignmentsId, setGeneratedAlignmentsId] = useState<string | null>(null);
   const [generatedAlignmentFilename, setGeneratedAlignmentFilename] = useState<string>('alignment.jsonl');
 
+  // Track if we've loaded from localStorage to prevent overwriting on mount
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
+
   // Persistence: Load state from localStorage on mount
   useEffect(() => {
     const savedState = localStorage.getItem('alignmentUploadPanelState');
@@ -118,10 +121,14 @@ export default function AlignmentUploadPanel({
         console.error('Failed to load saved state:', err);
       }
     }
+    // Mark as loaded after attempting to load (even if nothing was saved)
+    setHasLoadedFromStorage(true);
   }, []);
 
-  // Persistence: Save state to localStorage when it changes
+  // Persistence: Save state to localStorage when it changes (but only after initial load)
   useEffect(() => {
+    if (!hasLoadedFromStorage) return; // Don't save until we've loaded
+
     const stateToSave = {
       pdfSource,
       pdfDocIds,
@@ -136,6 +143,7 @@ export default function AlignmentUploadPanel({
     };
     localStorage.setItem('alignmentUploadPanelState', JSON.stringify(stateToSave));
   }, [
+    hasLoadedFromStorage,
     pdfSource,
     pdfDocIds,
     languages,
