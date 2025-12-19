@@ -41,14 +41,16 @@ TO BE REVIEWED
 MINE
 
 [x] implement the possibility for the user to download the chunks and the alignments jsonl files after their generation
-[] implement semantic search in the search box. distinguish with a label among the exact search and the semantic search results. include only the semantic search results if significant (ABOVE X%)
-[] make Source and Target Text in "AI Alignment Audit" editable
+[x] make Source and Target Text in "AI Alignment Audit" editable, so that user can manually edit them before generating the prompt
 [] store the prompt in "AI Alignment Audit" separately from the code where it is used. the idea is in the future to create a collection of multiple prompts the user will choose from. or assign a prompt to each task tyoe
 
 IDEAS:
-[] let user have the possibility to extend/reduce word by word Source and Target Text in "AI Alignment Audit"
+[] let user have the possibility to extend/reduce  Source and Target Text in "AI Alignment Audit" adding or removing lines
 
 SEMANTIC SEARCH:
+
+[] implement semantic search in the search box. distinguish with a label among the exact search and the semantic search results. include only the semantic search results if significant (ABOVE X%).
+in settings, users have the possibiity to select an embededing model and additional specifications, like BM12 search, ...
 
 • Here’s a concrete plan to add semantic search alongside the existing exact chunk search:
 

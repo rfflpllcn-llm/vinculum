@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { Anchor, Alignment, AITask } from '@/types/schemas';
 import { authFetch } from '@/lib/authFetch';
@@ -41,6 +41,10 @@ export default function AIAuditModal({
   const [prompt, setPrompt] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
+ // Editable text state
+  const [editableSourceText, setEditableSourceText] = useState<string>('');
+  const [editableTargetText, setEditableTargetText] = useState<string>('');
+
   const contextEnabled = task === 'audit' && includeContext;
   const sourceQuote = sourceAnchor
     ? (contextEnabled ? buildContextQuote(sourceAnchor, sourceAnchors, 2) : sourceAnchor.quote)
@@ -48,6 +52,15 @@ export default function AIAuditModal({
   const targetQuote = targetAnchor
     ? (contextEnabled ? buildContextQuote(targetAnchor, targetAnchors, 2) : targetAnchor.quote)
     : '';
+
+  // Update editable text when source/target quotes change
+  useEffect(() => {
+    setEditableSourceText(sourceQuote);
+  }, [sourceQuote]);
+
+  useEffect(() => {
+    setEditableTargetText(targetQuote);
+  }, [targetQuote]);
 
   const handleAudit = async () => {
     if (!sourceAnchor || !targetAnchor) return;
@@ -64,8 +77,8 @@ export default function AIAuditModal({
           orgLanguage: sourceLabel,
           srcLanguage: targetLabel,
           tgtLanguage: "N/A",
-          excerptOrig: sourceQuote,
-          excerptSrc: targetQuote,
+          excerptOrig: editableSourceText,
+          excerptSrc: editableTargetText,
           excerptTgt: "—",
         });
         setPrompt(promptText);
@@ -82,12 +95,12 @@ export default function AIAuditModal({
           anchors: [
             {
               anchorId: sourceAnchor.anchorId,
-              quote: sourceQuote,
+              quote: editableSourceText,
               documentId: sourceAnchor.documentId,
             },
             {
               anchorId: targetAnchor.anchorId,
-              quote: targetQuote,
+              quote: editableTargetText,
               documentId: targetAnchor.documentId,
             },
           ],
@@ -154,19 +167,27 @@ export default function AIAuditModal({
           </label>
         )}
 
-        {/* Source and Target Quotes */}
+        {/* Source and Target Quotes - Editable */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <h3 className="text-sm font-semibold mb-2">Source Text:</h3>
-            <div className="border rounded p-3 bg-gray-50 text-sm max-h-32 overflow-y-auto">
-              {sourceAnchor ? sourceQuote || 'N/A' : 'N/A'}
-            </div>
+            <h3 className="text-sm font-semibold mb-2">Source Text (editable):</h3>
+            <textarea
+              value={editableSourceText}
+              onChange={(e) => setEditableSourceText(e.target.value)}
+              disabled={loading}
+              className="w-full border rounded p-3 text-sm h-32 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Source text will appear here..."
+            />
           </div>
           <div>
-            <h3 className="text-sm font-semibold mb-2">Target Text:</h3>
-            <div className="border rounded p-3 bg-gray-50 text-sm max-h-32 overflow-y-auto">
-              {targetAnchor ? targetQuote || 'N/A' : 'N/A'}
-            </div>
+            <h3 className="text-sm font-semibold mb-2">Target Text (editable):</h3>
+            <textarea
+              value={editableTargetText}
+              onChange={(e) => setEditableTargetText(e.target.value)}
+              disabled={loading}
+              className="w-full border rounded p-3 text-sm h-32 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Target text will appear here..."
+            />
           </div>
         </div>
 
