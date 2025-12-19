@@ -849,11 +849,11 @@ export default function AlignmentUploadPanel({
                   {languages.map((lang, index) => (
                     <div
                       key={index}
-                      className={`flex gap-2 items-end p-2 rounded transition-colors ${
+                      className={`flex w-full flex-wrap gap-2 items-center p-2 rounded transition-colors ${
                         visibleLanguages.includes(lang) ? 'bg-green-50 border border-green-200' : ''
                       }`}
                     >
-                      <div className="w-44">
+                      <div className="w-56 min-w-[224px]">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Language
                         </label>
@@ -870,7 +870,7 @@ export default function AlignmentUploadPanel({
                           ))}
                         </select>
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-[320px]">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           {formatLanguageLabel(lang)} Document
                         </label>
@@ -889,7 +889,7 @@ export default function AlignmentUploadPanel({
                           ))}
                         </select>
                       </div>
-                      <div className="flex items-center gap-3 pb-2">
+                      <div className="flex items-center gap-3">
                         <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap">
                           <input
                             type="checkbox"
@@ -929,11 +929,11 @@ export default function AlignmentUploadPanel({
                   {languages.map((lang, index) => (
                     <div
                       key={index}
-                      className={`flex gap-2 items-end p-2 rounded transition-colors ${
+                      className={`flex w-full flex-wrap gap-2 items-center p-2 rounded transition-colors ${
                         visibleLanguages.includes(lang) ? 'bg-green-50 border border-green-200' : ''
                       }`}
                     >
-                      <div className="w-40">
+                      <div className="w-56 min-w-[224px]">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Language
                         </label>
@@ -972,7 +972,7 @@ export default function AlignmentUploadPanel({
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 pb-2">
+                      <div className="flex items-center gap-3">
                         <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap">
                           <input
                             type="checkbox"
