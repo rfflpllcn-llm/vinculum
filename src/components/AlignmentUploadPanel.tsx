@@ -109,9 +109,19 @@ export default function AlignmentUploadPanel({
         const parsed = JSON.parse(savedState);
         if (parsed.pdfSource) setPdfSource(parsed.pdfSource);
         if (parsed.pdfDocIds) setPdfDocIds(parsed.pdfDocIds);
-        if (parsed.languages) setLanguages(parsed.languages);
+
+        // Load languages first
+        const loadedLanguages = parsed.languages || ['en', 'it'];
+        if (parsed.languages) setLanguages(loadedLanguages);
+
         if (parsed.originalLanguage !== undefined) setOriginalLanguage(parsed.originalLanguage);
-        if (parsed.visibleLanguages) setVisibleLanguages(parsed.visibleLanguages);
+
+        // Sort visibleLanguages by languages array order when loading
+        if (parsed.visibleLanguages) {
+          const sorted = loadedLanguages.filter((l: string) => parsed.visibleLanguages.includes(l));
+          setVisibleLanguages(sorted);
+        }
+
         if (parsed.textField) setTextField(parsed.textField);
         if (parsed.metadataFields) setMetadataFields(parsed.metadataFields);
         if (parsed.keepAllAlignments !== undefined) setKeepAllAlignments(parsed.keepAllAlignments);
