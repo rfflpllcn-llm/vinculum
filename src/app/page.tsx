@@ -26,6 +26,7 @@ export default function Home() {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [fileData, setFileData] = useState<ArrayBuffer | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
+  const [loadingAlignmentData, setLoadingAlignmentData] = useState(false);
   const [selectedAnchor, setSelectedAnchor] = useState<Anchor | null>(null);
   const [noteContent, setNoteContent] = useState("");
 
@@ -201,6 +202,9 @@ export default function Home() {
       setSourceDocument({ ...sourceDoc, documentId: newSourceDocId });
       setTargetDocument({ ...targetDoc, documentId: newTargetDocId });
 
+      // Set loading state - PDFs will show but data is still loading
+      setLoadingAlignmentData(true);
+
       // Check cache status
       const [sourceCached, targetCached] = await Promise.all([
         isPDFCached(sourceDoc.driveFileId),
@@ -263,11 +267,15 @@ export default function Home() {
         setTargetLanguage(langArray[0]);
       }
 
+      // All data loaded successfully
+      setLoadingAlignmentData(false);
+
       alert(
         `Loaded ${result.sourceAnchorsCount} source anchors, ${result.targetAnchorsCount} target anchors, and ${result.alignmentsCount} alignments!`
       );
     } catch (error) {
       console.error('Error uploading alignments:', error);
+      setLoadingAlignmentData(false);
       alert('Failed to upload alignments: ' + (error instanceof Error ? error.message : 'Unknown error'));
       throw error;
     }
@@ -608,22 +616,34 @@ export default function Home() {
           /* Dual View Mode */
           sourceDocument && targetDocument && sourceFileData && targetFileData ? (
             <>
-              <DualDocumentView
-                sourceDocument={sourceDocument}
-                targetDocument={targetDocument}
-                sourceFileData={sourceFileData}
-                targetFileData={targetFileData}
-                sourceAnchors={sourceAnchors}
-                targetAnchors={targetAnchors}
-                alignments={alignments}
-                syncScrollEnabled={syncScrollEnabled}
-                onAlignmentSelect={handleAlignmentSelect}
-                onSourcePageChange={setCurrentSourcePage}
-                selectedSourceAnchors={selectedSourceAnchors}
-                selectedTargetAnchors={selectedTargetAnchors}
-                sourceScrollToPage={requestedSourcePage}
-                targetScrollToPage={requestedTargetPage !== undefined ? requestedTargetPage : alignmentTargetPage}
-              />
+              <div className="relative flex-1 flex">
+                <DualDocumentView
+                  sourceDocument={sourceDocument}
+                  targetDocument={targetDocument}
+                  sourceFileData={sourceFileData}
+                  targetFileData={targetFileData}
+                  sourceAnchors={sourceAnchors}
+                  targetAnchors={targetAnchors}
+                  alignments={alignments}
+                  syncScrollEnabled={syncScrollEnabled}
+                  onAlignmentSelect={handleAlignmentSelect}
+                  onSourcePageChange={setCurrentSourcePage}
+                  selectedSourceAnchors={selectedSourceAnchors}
+                  selectedTargetAnchors={selectedTargetAnchors}
+                  sourceScrollToPage={requestedSourcePage}
+                  targetScrollToPage={requestedTargetPage !== undefined ? requestedTargetPage : alignmentTargetPage}
+                />
+                {/* Loading overlay */}
+                {loadingAlignmentData && (
+                  <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50">
+                    <div className="text-center">
+                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                      <div className="text-gray-700 font-medium">Loading alignment data...</div>
+                      <div className="text-sm text-gray-500 mt-2">Please wait while chunks and alignments are being loaded</div>
+                    </div>
+                  </div>
+                )}
+              </div>
               {/* Search Panel */}
               <div className="w-80 bg-white border-l overflow-y-auto">
                 <div className="p-2 border-b bg-gray-100">
