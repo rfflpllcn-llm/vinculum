@@ -123,7 +123,9 @@ export async function parseAlignmentFiles(
   sourceDocumentId: UUID,
   targetDocumentId: UUID,
   sourcePDF: pdfjsLib.PDFDocumentProxy,
-  targetPDF: pdfjsLib.PDFDocumentProxy
+  targetPDF: pdfjsLib.PDFDocumentProxy,
+  sourceLanguageHint?: string,
+  targetLanguageHint?: string
 ): Promise<ParsedAlignmentData> {
   console.log('Parsing alignment files...');
 
@@ -146,8 +148,8 @@ export async function parseAlignmentFiles(
   }
 
   // Step 3: Determine source and target languages from alignments
-  const sourceLang = validPairs[0]?.src_lang || 'en';
-  const targetLang = validPairs[0]?.tgt_lang || 'it';
+  const sourceLang = sourceLanguageHint || validPairs[0]?.src_lang || 'en';
+  const targetLang = targetLanguageHint || validPairs[0]?.tgt_lang || 'it';
   console.log(`Source language: ${sourceLang}, Target language: ${targetLang}`);
 
   // Step 4: Compute row numbers for all chunks (sequential position within each page)

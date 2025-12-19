@@ -169,7 +169,9 @@ export default function Home() {
     chunksFile: File,
     alignmentsFile: File,
     sourceDoc: Document,
-    targetDoc: Document
+    targetDoc: Document,
+    sourceLanguageHint?: string,
+    targetLanguageHint?: string
   ) => {
     try {
       // Generate persistent document IDs
@@ -183,6 +185,8 @@ export default function Home() {
       formData.append('targetDocId', newTargetDocId);
       formData.append('sourceDriveFileId', sourceDoc.driveFileId);
       formData.append('targetDriveFileId', targetDoc.driveFileId);
+      if (sourceLanguageHint) formData.append('sourceLanguage', sourceLanguageHint);
+      if (targetLanguageHint) formData.append('targetLanguage', targetLanguageHint);
 
       const response = await authFetch('/api/alignments/upload', {
         method: 'POST',
@@ -258,7 +262,10 @@ export default function Home() {
 
       // Extract language codes from chunks (usually two languages)
       const langArray = Array.from(languages).sort();
-      if (langArray.length >= 2) {
+      if (sourceLanguageHint && targetLanguageHint) {
+        setSourceLanguage(sourceLanguageHint);
+        setTargetLanguage(targetLanguageHint);
+      } else if (langArray.length >= 2) {
         setSourceLanguage(langArray[0]);
         setTargetLanguage(langArray[1]);
       } else if (langArray.length === 1) {

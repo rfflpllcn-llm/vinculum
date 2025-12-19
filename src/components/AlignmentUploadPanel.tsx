@@ -4,6 +4,46 @@ import { useState, useEffect } from 'react';
 import { Document } from '@/types/schemas';
 import { authFetch } from '@/lib/authFetch';
 
+const SUPPORTED_LANGUAGES = [
+  { code: 'ca', name: 'Catalan' },
+  { code: 'zh', name: 'Chinese' },
+  { code: 'cs', name: 'Czech' },
+  { code: 'da', name: 'Danish' },
+  { code: 'nl', name: 'Dutch' },
+  { code: 'en', name: 'English' },
+  { code: 'fi', name: 'Finnish' },
+  { code: 'fr', name: 'French' },
+  { code: 'de', name: 'German' },
+  { code: 'el', name: 'Greek' },
+  { code: 'hu', name: 'Hungarian' },
+  { code: 'is', name: 'Icelandic' },
+  { code: 'it', name: 'Italian' },
+  { code: 'lt', name: 'Lithuanian' },
+  { code: 'lv', name: 'Latvian' },
+  { code: 'no', name: 'Norwegian' },
+  { code: 'pl', name: 'Polish' },
+  { code: 'pt', name: 'Portuguese' },
+  { code: 'ro', name: 'Romanian' },
+  { code: 'ru', name: 'Russian' },
+  { code: 'sr', name: 'Serbian' },
+  { code: 'sk', name: 'Slovak' },
+  { code: 'sl', name: 'Slovenian' },
+  { code: 'es', name: 'Spanish' },
+  { code: 'sv', name: 'Swedish' },
+  { code: 'tr', name: 'Turkish' },
+] as const;
+
+const getLanguageName = (code: string) =>
+  SUPPORTED_LANGUAGES.find((lang) => lang.code === code)?.name;
+
+const getNextAvailableLanguage = (existing: string[]) =>
+  SUPPORTED_LANGUAGES.find(({ code }) => !existing.includes(code))?.code;
+
+const formatLanguageLabel = (code: string) => {
+  const name = getLanguageName(code);
+  return name ? `${code.toUpperCase()} · ${name}` : code.toUpperCase();
+};
+
 /**
  * Alignment Upload Panel
  * UI for uploading JSONL alignment files and configuring dual view
@@ -18,7 +58,9 @@ interface AlignmentUploadPanelProps {
     chunksFile: File,
     alignmentsFile: File,
     sourceDoc: Document,
-    targetDoc: Document
+    targetDoc: Document,
+    sourceLanguage?: string,
+    targetLanguage?: string
   ) => Promise<void>;
 }
 
@@ -46,6 +88,8 @@ export default function AlignmentUploadPanel({
   const [taskId, setTaskId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
+  const [uploadSourceLanguage, setUploadSourceLanguage] = useState('en');
+  const [uploadTargetLanguage, setUploadTargetLanguage] = useState('it');
 
   // Generated files for download
   const [generatedChunksId, setGeneratedChunksId] = useState<string | null>(null);
@@ -176,7 +220,14 @@ export default function AlignmentUploadPanel({
       selectedAlignment.targetLang
     );
 
-    await onUpload(chunksFile, alignmentsFile, sourceDoc, targetDoc);
+    await onUpload(
+      chunksFile,
+      alignmentsFile,
+      sourceDoc,
+      targetDoc,
+      selectedAlignment.sourceLang || languages[0],
+      selectedAlignment.targetLang || languages[1]
+    );
   };
 
   const handleUpload = async () => {
@@ -196,7 +247,14 @@ export default function AlignmentUploadPanel({
     try {
       setUploading(true);
       setError(null);
-      await onUpload(chunksFile, alignmentsFile, sourceDoc, targetDoc);
+      await onUpload(
+        chunksFile,
+        alignmentsFile,
+        sourceDoc,
+        targetDoc,
+        uploadSourceLanguage,
+        uploadTargetLanguage
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -341,10 +399,52 @@ export default function AlignmentUploadPanel({
   };
 
   const addLanguage = () => {
-    const newLang = prompt('Enter language code (e.g., fr, de, es):');
-    if (newLang && !languages.includes(newLang)) {
-      setLanguages([...languages, newLang]);
+    const nextLang = getNextAvailableLanguage(languages);
+    if (!nextLang) {
+      setError('All supported languages have been added.');
+      return;
     }
+    setLanguages([...languages, nextLang]);
+    setError(null);
+  };
+
+  const handleLanguageChange = (index: number, newLang: string) => {
+    const oldLang = languages[index];
+
+    if (!SUPPORTED_LANGUAGES.some((lang) => lang.code === newLang)) {
+      setError('Selected language is not supported');
+      return;
+    }
+
+    if (languages.some((lang, i) => i !== index && lang === newLang)) {
+      setError(`Language "${newLang}" is already added`);
+      return;
+    }
+
+    if (newLang === oldLang) {
+      setError(null);
+      return;
+    }
+
+    const updatedLanguages = [...languages];
+    updatedLanguages[index] = newLang;
+
+    const updatedPdfDocIds = { ...pdfDocIds };
+    if (updatedPdfDocIds[oldLang]) {
+      updatedPdfDocIds[newLang] = updatedPdfDocIds[oldLang];
+    }
+    delete updatedPdfDocIds[oldLang];
+
+    const updatedPdfFiles = { ...pdfFiles };
+    if (updatedPdfFiles[oldLang]) {
+      updatedPdfFiles[newLang] = updatedPdfFiles[oldLang];
+    }
+    delete updatedPdfFiles[oldLang];
+
+    setLanguages(updatedLanguages);
+    setPdfDocIds(updatedPdfDocIds);
+    setPdfFiles(updatedPdfFiles);
+    setError(null);
   };
 
   const removeLanguage = (lang: string) => {
@@ -430,6 +530,23 @@ export default function AlignmentUploadPanel({
                     </option>
                   ))}
                 </select>
+                <div className="mt-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Source Language
+                  </label>
+                  <select
+                    value={uploadSourceLanguage}
+                    onChange={(e) => setUploadSourceLanguage(e.target.value)}
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    disabled={uploading}
+                  >
+                    {SUPPORTED_LANGUAGES.map(({ code, name }) => (
+                      <option key={code} value={code}>
+                        {code.toUpperCase()} — {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -449,6 +566,23 @@ export default function AlignmentUploadPanel({
                     </option>
                   ))}
                 </select>
+                <div className="mt-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Target Language
+                  </label>
+                  <select
+                    value={uploadTargetLanguage}
+                    onChange={(e) => setUploadTargetLanguage(e.target.value)}
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    disabled={uploading}
+                  >
+                    {SUPPORTED_LANGUAGES.map(({ code, name }) => (
+                      <option key={code} value={code}>
+                        {code.toUpperCase()} — {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -582,11 +716,28 @@ export default function AlignmentUploadPanel({
               {pdfSource === 'drive' ? (
                 // From Google Drive
                 <>
-                  {languages.map((lang) => (
-                    <div key={lang} className="flex gap-2 items-end">
+                  {languages.map((lang, index) => (
+                    <div key={index} className="flex gap-2 items-end">
+                      <div className="w-40">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Language
+                        </label>
+                        <select
+                          value={lang}
+                          onChange={(e) => handleLanguageChange(index, e.target.value)}
+                          className="w-full border rounded px-3 py-2"
+                          disabled={generating}
+                        >
+                          {SUPPORTED_LANGUAGES.map(({ code, name }) => (
+                            <option key={code} value={code}>
+                              {code.toUpperCase()} — {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {lang.toUpperCase()} PDF Document
+                          {formatLanguageLabel(lang)} Document
                         </label>
                         <select
                           value={pdfDocIds[lang] || ''}
@@ -617,11 +768,28 @@ export default function AlignmentUploadPanel({
               ) : (
                 // Upload from Computer
                 <>
-                  {languages.map((lang) => (
-                    <div key={lang} className="flex gap-2 items-end">
+                  {languages.map((lang, index) => (
+                    <div key={index} className="flex gap-2 items-end">
+                      <div className="w-40">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Language
+                        </label>
+                        <select
+                          value={lang}
+                          onChange={(e) => handleLanguageChange(index, e.target.value)}
+                          className="w-full border rounded px-3 py-2"
+                          disabled={generating}
+                        >
+                          {SUPPORTED_LANGUAGES.map(({ code, name }) => (
+                            <option key={code} value={code}>
+                              {code.toUpperCase()} — {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {lang.toUpperCase()} PDF
+                          {formatLanguageLabel(lang)} PDF File
                         </label>
                         <input
                           type="file"

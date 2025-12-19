@@ -17,6 +17,8 @@ import { UUID, Anchor, Alignment } from '@/types/schemas';
  * - targetDocId: UUID of target document
  * - sourceDriveFileId: Google Drive ID of source PDF
  * - targetDriveFileId: Google Drive ID of target PDF
+ * - sourceLanguage (optional): language code for source document
+ * - targetLanguage (optional): language code for target document
  */
 export async function POST(request: NextRequest) {
   try {
@@ -34,6 +36,8 @@ export async function POST(request: NextRequest) {
     const targetDocId = formData.get('targetDocId') as UUID;
     const sourceDriveFileId = formData.get('sourceDriveFileId') as string;
     const targetDriveFileId = formData.get('targetDriveFileId') as string;
+    const sourceLanguage = (formData.get('sourceLanguage') as string | null)?.toLowerCase();
+    const targetLanguage = (formData.get('targetLanguage') as string | null)?.toLowerCase();
 
     if (!chunksFile || !alignmentsFile || !sourceDocId || !targetDocId || !sourceDriveFileId || !targetDriveFileId) {
       return NextResponse.json(
@@ -80,7 +84,9 @@ export async function POST(request: NextRequest) {
       sourceDocId,
       targetDocId,
       sourcePDF,
-      targetPDF
+      targetPDF,
+      sourceLanguage || undefined,
+      targetLanguage || undefined
     );
 
     console.log(`Parsed: ${parsed.sourceAnchors.length} source anchors, ${parsed.targetAnchors.length} target anchors, ${parsed.alignments.length} alignments`);
