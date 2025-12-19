@@ -265,17 +265,22 @@ export default function AlignmentUploadPanel({
         .map((pair) => alignments.find((alignment) =>
           alignment.sourceLang === pair.source && alignment.targetLang === pair.target
         ))
-        .find(Boolean) || alignments[0];
+        .find(Boolean);
 
-    if (!selectedAlignment || !selectedAlignment.driveFileId) {
+    if (preferredPairs.length > 0 && !selectedAlignment) {
+      throw new Error('No cached alignment matches the selected visible languages.');
+    }
+
+    const finalAlignment = selectedAlignment || alignments[0];
+    if (!finalAlignment || !finalAlignment.driveFileId) {
       throw new Error('Cached alignment file is missing.');
     }
 
     const chunksFilename = data.chunks?.filename || "chunks.jsonl";
     const chunksFile = await downloadDriveFile(chunksId, chunksFilename);
     const alignmentsFile = await downloadDriveFile(
-      selectedAlignment.driveFileId,
-      selectedAlignment.filename
+      finalAlignment.driveFileId,
+      finalAlignment.filename
     );
 
     if (pdfSource !== 'drive') {
@@ -287,8 +292,8 @@ export default function AlignmentUploadPanel({
     }
 
     const { sourceDoc, targetDoc } = getDocsForAlignment(
-      selectedAlignment.sourceLang,
-      selectedAlignment.targetLang
+      finalAlignment.sourceLang,
+      finalAlignment.targetLang
     );
 
     await onUpload(
@@ -296,8 +301,8 @@ export default function AlignmentUploadPanel({
       alignmentsFile,
       sourceDoc,
       targetDoc,
-      selectedAlignment.sourceLang || visibleLanguages[0],
-      selectedAlignment.targetLang || visibleLanguages[1]
+      finalAlignment.sourceLang || visibleLanguages[0],
+      finalAlignment.targetLang || visibleLanguages[1]
     );
   };
 
@@ -423,12 +428,18 @@ export default function AlignmentUploadPanel({
       formData.append('pdfSource', pdfSource);
 
       if (pdfSource === 'drive') {
-        // Send Drive file IDs
-        formData.append('pdfDocIds', JSON.stringify(pdfDocIds));
+        // Send Drive file IDs for visible languages only
+        const visiblePdfDocIds: Record<string, string> = {};
+        visibleLanguages.forEach((lang) => {
+          if (pdfDocIds[lang]) {
+            visiblePdfDocIds[lang] = pdfDocIds[lang];
+          }
+        });
+        formData.append('pdfDocIds', JSON.stringify(visiblePdfDocIds));
       } else {
-        // Send uploaded files
+        // Send uploaded files for visible languages only
         const pdfFilesConfig: Record<string, string> = {};
-        languages.forEach((lang) => {
+        visibleLanguages.forEach((lang) => {
           const fieldName = `pdf_${lang}`;
           formData.append(fieldName, pdfFiles[lang]);
           pdfFilesConfig[lang] = fieldName;

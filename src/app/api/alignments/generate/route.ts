@@ -35,8 +35,29 @@ export async function POST(request: NextRequest) {
     const runAlignment = formData.get("runAlignment") !== "false";
     const maxAlign = parseInt(formData.get("maxAlign") as string) || 3;
     const keepAllAlignments = formData.get("keepAllAlignments") === "true";
+    const visibleLanguagesJson = formData.get("visibleLanguages") as string | null;
 
     const metadataFields = metadataFieldsStr.split(",").map((f) => f.trim());
+    let visibleLanguages: string[] | null = null;
+    if (visibleLanguagesJson) {
+      try {
+        const parsed = JSON.parse(visibleLanguagesJson);
+        if (Array.isArray(parsed)) {
+          visibleLanguages = parsed.filter((lang) => typeof lang === "string");
+        }
+      } catch (e) {
+        return NextResponse.json(
+          { error: "Invalid visibleLanguages JSON" },
+          { status: 400 }
+        );
+      }
+    }
+    if (visibleLanguages && visibleLanguages.length !== 2) {
+      return NextResponse.json(
+        { error: "Exactly 2 visible languages are required" },
+        { status: 400 }
+      );
+    }
 
     // Initialize Drive service
     const drive = new DriveService(session.accessToken);
@@ -65,7 +86,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      for (const [lang, driveFileId] of Object.entries(pdfDocIds)) {
+      const filteredPdfDocIds = visibleLanguages
+        ? Object.fromEntries(
+            Object.entries(pdfDocIds).filter(([lang]) => visibleLanguages!.includes(lang))
+          )
+        : pdfDocIds;
+
+      if (visibleLanguages && Object.keys(filteredPdfDocIds).length !== visibleLanguages.length) {
+        return NextResponse.json(
+          { error: "Missing PDF document IDs for visible languages" },
+          { status: 400 }
+        );
+      }
+
+      for (const [lang, driveFileId] of Object.entries(filteredPdfDocIds)) {
         // Download PDF from Drive
         const arrayBuffer = await drive.downloadFile(driveFileId);
         const hash = hashFileContent(arrayBuffer);
@@ -97,7 +131,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      for (const [lang, fieldName] of Object.entries(pdfFilesConfig)) {
+      const filteredPdfFilesConfig = visibleLanguages
+        ? Object.fromEntries(
+            Object.entries(pdfFilesConfig).filter(([lang]) => visibleLanguages!.includes(lang))
+          )
+        : pdfFilesConfig;
+
+      if (visibleLanguages && Object.keys(filteredPdfFilesConfig).length !== visibleLanguages.length) {
+        return NextResponse.json(
+          { error: "Missing PDF files for visible languages" },
+          { status: 400 }
+        );
+      }
+
+      for (const [lang, fieldName] of Object.entries(filteredPdfFilesConfig)) {
         const pdfFile = formData.get(fieldName) as File;
         if (!pdfFile) {
           return NextResponse.json(
