@@ -48,9 +48,12 @@ export default function PDFViewer({
 
   // Load PDF document
   useEffect(() => {
+    let isMounted = true;
+
     const loadPDF = async () => {
       try {
-        setLoading(true);
+        if (isMounted) setLoading(true);
+
         if (loadingTaskRef.current) {
           await loadingTaskRef.current.destroy();
           loadingTaskRef.current = null;
@@ -58,28 +61,41 @@ export default function PDFViewer({
 
         if (fileData.byteLength === 0) {
           console.warn("PDFViewer: fileData buffer is detached or empty.");
-          setLoading(false);
+          if (isMounted) setLoading(false);
           return;
         }
 
         const dataCopy = new Uint8Array(fileData).slice();
         const loadingTask = pdfjsLib.getDocument({ data: dataCopy });
         loadingTaskRef.current = loadingTask;
+
         const pdf = await loadingTask.promise;
-        setPdfDoc(pdf);
-        setTotalPages(pdf.numPages);
-        setLoading(false);
+
+        // Only update state if component is still mounted
+        if (isMounted) {
+          setPdfDoc(pdf);
+          setTotalPages(pdf.numPages);
+          setLoading(false);
+        }
       } catch (error) {
-        console.error("Error loading PDF:", error);
-        setLoading(false);
+        // Ignore errors from cancelled/destroyed workers
+        if (error instanceof Error && error.message.includes('Worker was destroyed')) {
+          console.log('PDF loading cancelled (component unmounted)');
+        } else {
+          console.error("Error loading PDF:", error);
+        }
+        if (isMounted) setLoading(false);
       }
     };
 
     loadPDF();
 
     return () => {
+      isMounted = false;
       if (loadingTaskRef.current) {
-        loadingTaskRef.current.destroy();
+        loadingTaskRef.current.destroy().catch(() => {
+          // Ignore cleanup errors
+        });
         loadingTaskRef.current = null;
       }
     };
