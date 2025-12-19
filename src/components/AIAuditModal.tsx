@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { Anchor, Alignment, AITask } from '@/types/schemas';
 import { authFetch } from '@/lib/authFetch';
+import { buildAlignmentAuditPrompt } from '@/lib/aiPrompts';
 
 /**
  * AI Audit Modal Component
@@ -74,12 +75,10 @@ export default function AIAuditModal({
     try {
       if (task === 'audit') {
         const promptText = buildAuditPrompt({
-          orgLanguage: sourceLabel,
-          srcLanguage: targetLabel,
-          tgtLanguage: "N/A",
-          excerptOrig: editableSourceText,
-          excerptSrc: editableTargetText,
-          excerptTgt: "—",
+          srcLanguage: sourceLabel,
+          tgtLanguage: targetLabel,
+          srcText: editableSourceText,
+          tgtText: editableTargetText,
         });
         setPrompt(promptText);
         return;
@@ -284,52 +283,7 @@ function buildContextQuote(anchor: Anchor, anchors: Anchor[], radius: number): s
   return ordered.slice(start, end).map((item) => item.quote).join("\n");
 }
 
-function buildAuditPrompt({
-  orgLanguage,
-  srcLanguage,
-  tgtLanguage,
-  excerptOrig,
-  excerptSrc,
-  excerptTgt,
-}: {
-  orgLanguage: string;
-  srcLanguage: string;
-  tgtLanguage: string;
-  excerptOrig: string;
-  excerptSrc: string;
-  excerptTgt: string;
-}): string {
-  return `Analyze and align the translation against the original text.
-
-CRITICAL INSTRUCTIONS:
-1. **Find the alignment/intersection point**: Identify where the texts correspond to each other
-2. **Segment ALL text**: Break down the ENTIRE provided text into aligned segments (not just significant parts)
-3. **Maintain correspondence**: Each row must contain corresponding segments from the two versions
-4. **Handle misalignments**: If texts don't align perfectly, note additions/omissions/reorderings
-
-Output ONLY a Markdown table with these columns:
-| Segment | ${orgLanguage} | ${srcLanguage} | Alignment Notes |
-
-Column descriptions:
-- **Segment**: Segment number (1, 2, 3, ...)
-- **${orgLanguage} (Original)**: The original text segment in ${orgLanguage}
-- **${srcLanguage}**: Corresponding translation in ${srcLanguage}
-- **Alignment Notes**: How translation align with original; note additions (+), omissions (-), reorderings, or semantic shifts
-
-IMPORTANT:
-- Cover the COMPLETE text from the two versions
-- Start from the first identifiable correspondence point
-- If one version has extra text, mark cells as "—" (em dash) for missing segments
-- Be thorough and systematic
-
----
-
-**Original (${orgLanguage}):**
-${excerptOrig}
-
-**Translation 1 (${srcLanguage}):**
-${excerptSrc}`;
-}
+const buildAuditPrompt = buildAlignmentAuditPrompt;
 
 /**
  * Simple Markdown Renderer

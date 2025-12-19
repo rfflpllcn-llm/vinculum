@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { AIAuditInput } from '@/types/schemas';
+import { AI_AUDIT_SYSTEM_PROMPT, AI_AUDIT_TASK_PROMPTS } from '@/lib/aiPrompts';
 
 /**
  * OpenAI Integration for AI Audit Feature
@@ -36,10 +37,7 @@ export async function auditAlignment(input: AIAuditInput): Promise<string> {
       messages: [
         {
           role: 'system',
-          content: `You are an expert translator and alignment analyst.
-Your task is to audit text alignments between source and target documents.
-Provide detailed analysis in markdown format.
-When referencing specific anchors, use the format [anchor:anchorId].`,
+          content: AI_AUDIT_SYSTEM_PROMPT,
         },
         {
           role: 'user',
@@ -67,24 +65,7 @@ function buildAuditPrompt(input: AIAuditInput): string {
   let prompt = '';
 
   // Task description
-  switch (task) {
-    case 'audit':
-      prompt += '# Alignment Audit Request\n\n';
-      prompt += 'Please audit the following text alignment and provide:\n';
-      prompt += '1. Translation quality assessment\n';
-      prompt += '2. Semantic accuracy\n';
-      prompt += '3. Any discrepancies or issues\n';
-      prompt += '4. Suggested improvements\n\n';
-      break;
-    case 'explain':
-      prompt += '# Alignment Explanation Request\n\n';
-      prompt += 'Please explain the relationship between these aligned texts:\n\n';
-      break;
-    case 'compare':
-      prompt += '# Alignment Comparison Request\n\n';
-      prompt += 'Please compare the following aligned texts:\n\n';
-      break;
-  }
+  prompt += AI_AUDIT_TASK_PROMPTS[task] || AI_AUDIT_TASK_PROMPTS.audit;
 
   // Add anchors
   if (anchors.length > 0) {
