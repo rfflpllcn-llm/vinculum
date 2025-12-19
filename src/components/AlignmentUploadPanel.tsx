@@ -98,6 +98,56 @@ export default function AlignmentUploadPanel({
   const [generatedAlignmentsId, setGeneratedAlignmentsId] = useState<string | null>(null);
   const [generatedAlignmentFilename, setGeneratedAlignmentFilename] = useState<string>('alignment.jsonl');
 
+  // Persistence: Load state from localStorage on mount
+  useEffect(() => {
+    const savedState = localStorage.getItem('alignmentUploadPanelState');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        if (parsed.pdfSource) setPdfSource(parsed.pdfSource);
+        if (parsed.pdfDocIds) setPdfDocIds(parsed.pdfDocIds);
+        if (parsed.languages) setLanguages(parsed.languages);
+        if (parsed.originalLanguage !== undefined) setOriginalLanguage(parsed.originalLanguage);
+        if (parsed.visibleLanguages) setVisibleLanguages(parsed.visibleLanguages);
+        if (parsed.textField) setTextField(parsed.textField);
+        if (parsed.metadataFields) setMetadataFields(parsed.metadataFields);
+        if (parsed.keepAllAlignments !== undefined) setKeepAllAlignments(parsed.keepAllAlignments);
+        if (parsed.uploadSourceLanguage) setUploadSourceLanguage(parsed.uploadSourceLanguage);
+        if (parsed.uploadTargetLanguage) setUploadTargetLanguage(parsed.uploadTargetLanguage);
+      } catch (err) {
+        console.error('Failed to load saved state:', err);
+      }
+    }
+  }, []);
+
+  // Persistence: Save state to localStorage when it changes
+  useEffect(() => {
+    const stateToSave = {
+      pdfSource,
+      pdfDocIds,
+      languages,
+      originalLanguage,
+      visibleLanguages,
+      textField,
+      metadataFields,
+      keepAllAlignments,
+      uploadSourceLanguage,
+      uploadTargetLanguage,
+    };
+    localStorage.setItem('alignmentUploadPanelState', JSON.stringify(stateToSave));
+  }, [
+    pdfSource,
+    pdfDocIds,
+    languages,
+    originalLanguage,
+    visibleLanguages,
+    textField,
+    metadataFields,
+    keepAllAlignments,
+    uploadSourceLanguage,
+    uploadTargetLanguage,
+  ]);
+
   const downloadDriveFile = async (fileId: string, filename: string): Promise<File> => {
     const response = await authFetch(`/api/documents/${fileId}`);
     if (!response.ok) {
