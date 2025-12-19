@@ -821,7 +821,7 @@ export default function AlignmentUploadPanel({
                         visibleLanguages.includes(lang) ? 'bg-green-50 border border-green-200' : ''
                       }`}
                     >
-                      <div className="w-40">
+                      <div className="w-44">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Language
                         </label>
@@ -838,19 +838,20 @@ export default function AlignmentUploadPanel({
                           ))}
                         </select>
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           {formatLanguageLabel(lang)} Document
                         </label>
                         <select
                           value={pdfDocIds[lang] || ''}
                           onChange={(e) => setPdfDocIds({ ...pdfDocIds, [lang]: e.target.value })}
-                          className="w-full border rounded px-3 py-2"
+                          className="w-full border rounded px-3 py-2 text-sm"
                           disabled={generating}
+                          title={documents.find(d => d.driveFileId === pdfDocIds[lang])?.filename || 'Select PDF...'}
                         >
                           <option value="">Select PDF...</option>
                           {documents.filter(d => d.mimeType === 'application/pdf').map((doc) => (
-                            <option key={doc.driveFileId} value={doc.driveFileId}>
+                            <option key={doc.driveFileId} value={doc.driveFileId} title={doc.filename}>
                               {doc.filename}
                             </option>
                           ))}
