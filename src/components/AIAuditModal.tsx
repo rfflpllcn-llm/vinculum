@@ -171,6 +171,33 @@ export default function AIAuditModal({
     return targetToSource;
   };
 
+  const buildOriginalContextText = (
+    orderedChunks: Array<{ chunk_id: number; text: string }>,
+    selectedChunkIds: Set<number>,
+    radius: number
+  ) => {
+    if (orderedChunks.length === 0 || selectedChunkIds.size === 0) {
+      return '';
+    }
+
+    const included = new Set<number>();
+    orderedChunks.forEach((chunk, index) => {
+      if (!selectedChunkIds.has(chunk.chunk_id)) {
+        return;
+      }
+      const start = Math.max(0, index - radius);
+      const end = Math.min(orderedChunks.length, index + radius + 1);
+      for (let i = start; i < end; i += 1) {
+        included.add(orderedChunks[i].chunk_id);
+      }
+    });
+
+    return orderedChunks
+      .filter((chunk) => included.has(chunk.chunk_id))
+      .map((chunk) => chunk.text)
+      .join('\n');
+  };
+
   const handleAudit = async () => {
     if (!sourceAnchor || !targetAnchor) return;
 
@@ -241,7 +268,16 @@ export default function AIAuditModal({
           throw new Error('No original text found for the selected alignment.');
         }
 
-        const orgText = originalChunks.map((chunk) => chunk.text).join('\n');
+        const orderedOriginalChunks = Array.from(chunkMap.values())
+          .filter((chunk) => chunk && chunk.language === normalizedOriginalLang)
+          .sort((a, b) => {
+            const pageDiff = Number(a.page) - Number(b.page);
+            return pageDiff !== 0 ? pageDiff : a.chunk_id - b.chunk_id;
+          });
+
+        const orgText = contextEnabled
+          ? buildOriginalContextText(orderedOriginalChunks, originalChunkIds, 2)
+          : originalChunks.map((chunk) => chunk.text).join('\n');
 
         const promptText = buildTripleAlignmentAuditPrompt({
           orgLanguage: normalizedOriginalLang,
