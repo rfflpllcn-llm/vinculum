@@ -478,9 +478,12 @@ export default function AlignmentUploadPanel({
       // Remove from visible
       setVisibleLanguages(visibleLanguages.filter(l => l !== lang));
     } else {
-      // Add to visible (if space available)
+      // Add to visible (if space available), maintaining order from languages array
       if (visibleLanguages.length < 2) {
-        setVisibleLanguages([...visibleLanguages, lang]);
+        const newVisible = [...visibleLanguages, lang];
+        // Sort by order in languages array to maintain consistent ordering
+        const sorted = languages.filter(l => newVisible.includes(l));
+        setVisibleLanguages(sorted);
       }
     }
   };
@@ -491,11 +494,15 @@ export default function AlignmentUploadPanel({
       setError('All supported languages have been added.');
       return;
     }
-    setLanguages([...languages, nextLang]);
+    const updatedLanguages = [...languages, nextLang];
+    setLanguages(updatedLanguages);
 
     // Auto-check visibility if fewer than 2 are currently visible
     if (visibleLanguages.length < 2) {
-      setVisibleLanguages([...visibleLanguages, nextLang]);
+      const newVisible = [...visibleLanguages, nextLang];
+      // Sort by order in languages array to maintain consistent ordering
+      const sorted = updatedLanguages.filter(l => newVisible.includes(l));
+      setVisibleLanguages(sorted);
     }
 
     setError(null);
