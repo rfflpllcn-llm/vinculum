@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Document } from "@/types/schemas";
+import { authFetch } from "@/lib/authFetch";
 
 interface LibraryPanelProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ export default function LibraryPanel({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/documents");
+      const response = await authFetch("/api/documents");
       if (!response.ok) {
         throw new Error("Failed to load documents");
       }

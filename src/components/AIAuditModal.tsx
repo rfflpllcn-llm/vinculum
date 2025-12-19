@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { Anchor, Alignment, AITask } from '@/types/schemas';
+import { authFetch } from '@/lib/authFetch';
 
 /**
  * AI Audit Modal Component
@@ -71,7 +72,7 @@ export default function AIAuditModal({
         return;
       }
 
-      const response = await fetch('/api/ai/audit', {
+      const response = await authFetch('/api/ai/audit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

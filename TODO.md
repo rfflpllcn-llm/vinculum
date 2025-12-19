@@ -47,3 +47,17 @@ MINE
 
 IDEAS:
 [] let user have the possibility to extend/reduce word by word Source and Target Text in "AI Alignment Audit"
+
+SEMANTIC SEARCH:
+
+• Here’s a concrete plan to add semantic search alongside the existing exact chunk search:
+
+  - Clarify data & schema: Confirm whether chunk data already includes vector IDs/embeddings; if not, extend LanguageChunk in src/types/schemas.ts and JSONL parsing to carry a vectorId (and optionally similarity from backend responses) so semantic hits can map back to anchors/pages. Document any
+    required fields in IMPLEMENTATION_SUMMARY.md.
+  - Backend semantic search API: Add a dedicated route (e.g., POST /api/search/semantic) that accepts the query, language/document filters, and a minimum similarity threshold X (env-driven, e.g., SEMANTIC_SEARCH_MIN_SCORE=0.7). Use the vector DB client to run cosine search over chunk vectors,
+    returning {chunkId, text, page, language, score} only for hits above X. Return an empty list if no hit passes the threshold. Include graceful fallback/error messaging for when the vector service is unavailable.
+  - Combine results in SearchPanel: Update src/components/SearchPanel.tsx to run both searches in parallel after the debounce: keep the current local exact match (substring) search, and call the semantic API. Merge results into a single list with a clear badge/label per row (Exact vs Semantic 82%).
+    Only render semantic rows if their score ≥ threshold; otherwise omit them entirely. Preserve pagination and the existing anchor lookup so semantic results still navigate to the correct page/row.
+  - UI/UX tweaks: Add a small legend or filter toggle indicating both modes are active, display the threshold when semantic results are hidden (“Semantic matches below 70% are suppressed”), and show a separate loading/empty state for semantic search errors without blocking exact results.
+  - Validation & tests: Add unit tests for the semantic API (threshold enforcement, filtering) and a lightweight front-end test for the merged result labeling logic. Manually verify in the UI that clicking either result type navigates/highlights correctly and that semantic results disappear when
+    their scores drop below X.

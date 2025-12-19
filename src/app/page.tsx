@@ -15,6 +15,7 @@ import SearchPanel from "@/components/SearchPanel";
 import { Document, NormalizedRect, Anchor, ViewMode, Alignment } from "@/types/schemas";
 import { generateUUID } from "@/lib/utils";
 import { getCachedPDF, cachePDF, isPDFCached } from "@/lib/pdfCache";
+import { authFetch } from "@/lib/authFetch";
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -59,7 +60,7 @@ export default function Home() {
   useEffect(() => {
     const loadDocuments = async () => {
       try {
-        const response = await fetch('/api/documents');
+        const response = await authFetch('/api/documents');
         if (response.ok) {
           const data = await response.json();
           setAvailableDocuments(data.documents || []);
@@ -82,7 +83,7 @@ export default function Home() {
 
       setLoadingFile(true);
       try {
-        const response = await fetch(`/api/documents/${selectedDocument.driveFileId}`);
+        const response = await authFetch(`/api/documents/${selectedDocument.driveFileId}`);
         if (!response.ok) throw new Error("Failed to load file");
         const arrayBuffer = await response.arrayBuffer();
         setFileData(arrayBuffer);
@@ -100,7 +101,7 @@ export default function Home() {
     if (!selectedDocument) return;
 
     try {
-      const response = await fetch("/api/anchors", {
+      const response = await authFetch("/api/anchors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -148,7 +149,7 @@ export default function Home() {
 
     // Download from Drive
     console.log(`Downloading PDF from Drive: ${filename}`);
-    const response = await fetch(`/api/documents/${driveFileId}`);
+    const response = await authFetch(`/api/documents/${driveFileId}`);
     if (!response.ok) throw new Error(`Failed to load file: ${filename}`);
     const arrayBuffer = await response.arrayBuffer();
 
@@ -182,7 +183,7 @@ export default function Home() {
       formData.append('sourceDriveFileId', sourceDoc.driveFileId);
       formData.append('targetDriveFileId', targetDoc.driveFileId);
 
-      const response = await fetch('/api/alignments/upload', {
+      const response = await authFetch('/api/alignments/upload', {
         method: 'POST',
         body: formData,
       });
@@ -223,15 +224,15 @@ export default function Home() {
 
       // Load anchors from Drive
       const [sourceAnchorsData, targetAnchorsData] = await Promise.all([
-        fetch(`/api/anchors?documentId=${newSourceDocId}`).then(r => r.json()),
-        fetch(`/api/anchors?documentId=${newTargetDocId}`).then(r => r.json()),
+        authFetch(`/api/anchors?documentId=${newSourceDocId}`).then(r => r.json()),
+        authFetch(`/api/anchors?documentId=${newTargetDocId}`).then(r => r.json()),
       ]);
 
       setSourceAnchors(sourceAnchorsData.anchors || []);
       setTargetAnchors(targetAnchorsData.anchors || []);
 
       // Load alignments
-      const alignmentsResponse = await fetch(
+      const alignmentsResponse = await authFetch(
         `/api/alignments?sourceDocId=${newSourceDocId}&targetDocId=${newTargetDocId}`
       );
       const alignmentsData = await alignmentsResponse.json();
@@ -370,6 +371,28 @@ export default function Home() {
     }
   };
 
+  // Reset dual view state and go back to document selection
+  const handleResetDualView = () => {
+    setSourceDocument(null);
+    setTargetDocument(null);
+    setSourceFileData(null);
+    setTargetFileData(null);
+    setSourceAnchors([]);
+    setTargetAnchors([]);
+    setAlignments([]);
+    setSelectedAlignment(null);
+    setSourceDocId('');
+    setTargetDocId('');
+    setCurrentSourcePage(1);
+    setCurrentTargetPage(1);
+    setChunkMap(new Map());
+    setRequestedSourcePage(undefined);
+    setRequestedTargetPage(undefined);
+    setSearchHighlightAnchor(null);
+    setSourceDocCached(false);
+    setTargetDocCached(false);
+  };
+
   // Build memoized lookup maps for O(1) anchor access
   const anchorIdToSourceAnchor = useMemo(() => {
     const map = new Map<string, Anchor>();
@@ -399,13 +422,22 @@ export default function Home() {
   }, [sourceAnchors]);
 
   // Filter alignments by current source page - O(N) instead of O(N*M)
+  // For multi-chunk alignments, check if ANY source anchor is on the current page
   const filteredAlignments = useMemo(() => {
     const anchorIdsOnPage = pageToSourceAnchorIds.get(currentSourcePage);
     if (!anchorIdsOnPage) return [];
 
-    return alignments.filter(alignment =>
-      anchorIdsOnPage.has(alignment.sourceAnchorId)
-    );
+    return alignments.filter(alignment => {
+      // Check primary source anchor
+      if (anchorIdsOnPage.has(alignment.sourceAnchorId)) {
+        return true;
+      }
+      // For multi-chunk alignments, check all source anchors
+      if (alignment.sourceAnchorIds) {
+        return alignment.sourceAnchorIds.some(anchorId => anchorIdsOnPage.has(anchorId));
+      }
+      return false;
+    });
   }, [alignments, pageToSourceAnchorIds, currentSourcePage]);
 
   // Get selected source and target anchors for highlighting - O(K) instead of O(M*K)
@@ -500,6 +532,15 @@ export default function Home() {
             </button>
           </div>
           <div className="flex items-center space-x-4">
+            {viewMode === 'dual' && sourceDocument && targetDocument && (
+              <button
+                onClick={handleResetDualView}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                title="Change documents"
+              >
+                Change Documents
+              </button>
+            )}
             <ViewModeToggle
               viewMode={viewMode}
               onChange={setViewMode}

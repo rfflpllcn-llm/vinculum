@@ -5,8 +5,8 @@ import { useState, useMemo, useEffect } from 'react';
 
 /**
  * Alignment Visualization Component
- * Displays alignment metadata and allows selection for AI audit
- * Groups alignments by their alignment_type and provides filtering
+ * Displays alignment metadata sorted by chunk ID and allows selection for AI audit
+ * Provides filtering by alignment_type
  */
 
 interface AlignmentVisualizationProps {
@@ -104,26 +104,49 @@ export default function AlignmentVisualization({
     return map;
   }, [targetAnchors]);
 
-  // Filter alignments by selected types
-  const filteredAlignments = useMemo(() => {
-    return alignments.filter(a =>
+  // Build anchorId -> chunkId map by matching quote text
+  const anchorIdToChunkId = useMemo(() => {
+    const map = new Map<string, number>();
+    if (chunkMap) {
+      Array.from(chunkMap.entries()).forEach(([chunkId, chunk]) => {
+        const sourceMatch = sourceAnchors.find(a => a.quote === chunk.text);
+        const targetMatch = targetAnchors.find(a => a.quote === chunk.text);
+        if (sourceMatch) map.set(sourceMatch.anchorId, chunkId);
+        if (targetMatch) map.set(targetMatch.anchorId, chunkId);
+      });
+    }
+    return map;
+  }, [chunkMap, sourceAnchors, targetAnchors]);
+
+  // Filter and sort alignments by minimum source chunk ID
+  const sortedFilteredAlignments = useMemo(() => {
+    // Filter by selected types
+    const filtered = alignments.filter(a =>
       !a.alignment_type || selectedTypes.has(a.alignment_type)
     );
-  }, [alignments, selectedTypes]);
 
-  // Group alignments by alignment_type
-  const groupedAlignments = useMemo(() => {
-    const groups = new Map<string, Alignment[]>();
-    filteredAlignments.forEach(alignment => {
-      const type = alignment.alignment_type || 'unknown';
-      if (!groups.has(type)) {
-        groups.set(type, []);
-      }
-      groups.get(type)!.push(alignment);
+    // Sort by minimum source chunk ID
+    return filtered.sort((a, b) => {
+      // For multi-chunk alignments, use the minimum chunk ID
+      const aAnchorIds = a.sourceAnchorIds || [a.sourceAnchorId];
+      const bAnchorIds = b.sourceAnchorIds || [b.sourceAnchorId];
+
+      const aMinChunkId = Math.min(
+        ...aAnchorIds
+          .map(id => anchorIdToChunkId.get(id))
+          .filter((n): n is number => n !== undefined),
+        Infinity // Fallback if no chunk IDs found
+      );
+      const bMinChunkId = Math.min(
+        ...bAnchorIds
+          .map(id => anchorIdToChunkId.get(id))
+          .filter((n): n is number => n !== undefined),
+        Infinity // Fallback if no chunk IDs found
+      );
+
+      return aMinChunkId - bMinChunkId;
     });
-    // Sort groups by type
-    return new Map([...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])));
-  }, [filteredAlignments]);
+  }, [alignments, selectedTypes, anchorIdToChunkId]);
 
   const handleTypeToggle = (type: string) => {
     const newSelected = new Set(selectedTypes);
@@ -284,7 +307,7 @@ export default function AlignmentVisualization({
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold">
-            Alignments ({filteredAlignments.length} of {alignments.length})
+            Alignments ({sortedFilteredAlignments.length} of {alignments.length})
           </h3>
 
           {/* Download buttons */}
@@ -346,67 +369,58 @@ export default function AlignmentVisualization({
         )}
       </div>
 
-      {/* Grouped alignments display */}
-      <div className="space-y-3 max-h-96 overflow-y-auto">
-        {Array.from(groupedAlignments.entries()).map(([type, typeAlignments]) => (
-          <div key={type} className="border-l-4 border-blue-400 pl-3">
-            <h4 className="text-xs font-semibold text-gray-700 mb-2">
-              {type} ({typeAlignments.length})
-            </h4>
-            <div className="space-y-2">
-              {typeAlignments.map((alignment) => {
-                // O(1) lookups instead of O(M) finds
-                const sourceAnchor = anchorIdToSourceAnchor.get(alignment.sourceAnchorId);
-                const targetAnchor = anchorIdToTargetAnchor.get(alignment.targetAnchorId);
+      {/* Alignments display - sorted by chunk ID */}
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        {sortedFilteredAlignments.map((alignment) => {
+          // O(1) lookups instead of O(M) finds
+          const sourceAnchor = anchorIdToSourceAnchor.get(alignment.sourceAnchorId);
+          const targetAnchor = anchorIdToTargetAnchor.get(alignment.targetAnchorId);
 
-                const isSelected = alignment.alignmentId === selectedAlignmentId;
+          const isSelected = alignment.alignmentId === selectedAlignmentId;
 
-                return (
-                  <div
-                    key={alignment.alignmentId}
-                    onClick={() => onSelect?.(alignment)}
-                    className={`border rounded p-2 cursor-pointer transition-colors ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <div className="text-xs text-gray-500 mb-1">
-                      Type: {alignment.type} | Confidence: {(alignment.confidence * 100).toFixed(0)}%
-                    </div>
-                    <div className="text-sm space-y-1">
-                      <div className="flex items-start space-x-2">
-                        <span className="text-gray-600 font-medium min-w-[60px]">Source:</span>
-                        <span className="text-gray-800 line-clamp-2">
-                          {sourceAnchor?.quote.substring(0, 100) || 'N/A'}
-                          {(sourceAnchor?.quote.length || 0) > 100 ? '...' : ''}
-                        </span>
-                      </div>
-                      <div className="flex items-start space-x-2">
-                        <span className="text-gray-600 font-medium min-w-[60px]">Target:</span>
-                        <span className="text-gray-800 line-clamp-2">
-                          {targetAnchor?.quote.substring(0, 100) || 'N/A'}
-                          {(targetAnchor?.quote.length || 0) > 100 ? '...' : ''}
-                        </span>
-                      </div>
-                    </div>
-                    {onAudit && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAudit(alignment);
-                        }}
-                        className="mt-2 w-full px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
-                      >
-                        AI Audit
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+          return (
+            <div
+              key={alignment.alignmentId}
+              onClick={() => onSelect?.(alignment)}
+              className={`border rounded p-2 cursor-pointer transition-colors ${
+                isSelected
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              <div className="text-xs text-gray-500 mb-1">
+                Type: {alignment.alignment_type || alignment.type} | Confidence: {(alignment.confidence * 100).toFixed(0)}%
+              </div>
+              <div className="text-sm space-y-1">
+                <div className="flex items-start space-x-2">
+                  <span className="text-gray-600 font-medium min-w-[60px]">Source:</span>
+                  <span className="text-gray-800 line-clamp-2">
+                    {sourceAnchor?.quote.substring(0, 100) || 'N/A'}
+                    {(sourceAnchor?.quote.length || 0) > 100 ? '...' : ''}
+                  </span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <span className="text-gray-600 font-medium min-w-[60px]">Target:</span>
+                  <span className="text-gray-800 line-clamp-2">
+                    {targetAnchor?.quote.substring(0, 100) || 'N/A'}
+                    {(targetAnchor?.quote.length || 0) > 100 ? '...' : ''}
+                  </span>
+                </div>
+              </div>
+              {onAudit && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAudit(alignment);
+                  }}
+                  className="mt-2 w-full px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                >
+                  AI Audit
+                </button>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

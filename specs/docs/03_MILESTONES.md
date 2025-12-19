@@ -36,7 +36,7 @@
 - [x] AIAuditModal component
 - [x] Modal wrapper component
 - [x] Install openai dependency
-- [x] Build verification and testing
+- [x] Build verification and testing[chunks_2025-12-18.jsonl](../../../../../Downloads/chunks_2025-12-18.jsonl)
 
 ## Phase 3 — Memory
 

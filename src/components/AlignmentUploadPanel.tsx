@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Document } from '@/types/schemas';
+import { authFetch } from '@/lib/authFetch';
 
 /**
  * Alignment Upload Panel
@@ -52,7 +53,7 @@ export default function AlignmentUploadPanel({
   const [generatedAlignmentFilename, setGeneratedAlignmentFilename] = useState<string>('alignment.jsonl');
 
   const downloadDriveFile = async (fileId: string, filename: string): Promise<File> => {
-    const response = await fetch(`/api/documents/${fileId}`);
+    const response = await authFetch(`/api/documents/${fileId}`);
     if (!response.ok) {
       throw new Error(`Failed to download ${filename}`);
     }
@@ -209,7 +210,7 @@ export default function AlignmentUploadPanel({
 
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/alignments/generate/${taskId}`);
+        const response = await authFetch(`/api/alignments/generate/${taskId}`);
         const data = await response.json();
 
         setProgress(data.progress);
@@ -306,7 +307,7 @@ export default function AlignmentUploadPanel({
       formData.append('keepAllAlignments', keepAllAlignments.toString());
 
       // Start generation
-      const response = await fetch('/api/alignments/generate', {
+      const response = await authFetch('/api/alignments/generate', {
         method: 'POST',
         body: formData,
       });
