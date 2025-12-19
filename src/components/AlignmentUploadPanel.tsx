@@ -242,10 +242,11 @@ export default function AlignmentUploadPanel({
       return null; // Signal that we should proceed with generation instead
     }
 
-    const preferredPairs = languages.length >= 2
+    // Use visible languages to determine which alignment to load
+    const preferredPairs = visibleLanguages.length >= 2
       ? [
-          { source: languages[0], target: languages[1] },
-          { source: languages[1], target: languages[0] },
+          { source: visibleLanguages[0], target: visibleLanguages[1] },
+          { source: visibleLanguages[1], target: visibleLanguages[0] },
         ]
       : [];
 
@@ -285,8 +286,8 @@ export default function AlignmentUploadPanel({
       alignmentsFile,
       sourceDoc,
       targetDoc,
-      selectedAlignment.sourceLang || languages[0],
-      selectedAlignment.targetLang || languages[1]
+      selectedAlignment.sourceLang || visibleLanguages[0],
+      selectedAlignment.targetLang || visibleLanguages[1]
     );
   };
 
@@ -429,6 +430,9 @@ export default function AlignmentUploadPanel({
       formData.append('metadataFields', metadataFields);
       formData.append('runAlignment', 'true');
       formData.append('keepAllAlignments', keepAllAlignments.toString());
+
+      // Send visible languages to specify which pair to use for dual view
+      formData.append('visibleLanguages', JSON.stringify(visibleLanguages));
 
       // Send original language information if specified
       if (originalLanguage) {
