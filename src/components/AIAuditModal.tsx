@@ -54,6 +54,8 @@ export default function AIAuditModal({
   const [error, setError] = useState<string | null>(null);
   const [task, setTask] = useState<AITask>('audit');
   const [includeContext, setIncludeContext] = useState(true);
+  const [contextBefore, setContextBefore] = useState(2);
+  const [contextAfter, setContextAfter] = useState(2);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
@@ -63,10 +65,10 @@ export default function AIAuditModal({
 
   const contextEnabled = task === 'audit' && includeContext;
   const sourceQuote = sourceAnchor
-    ? (contextEnabled ? buildContextQuote(sourceAnchor, sourceAnchors, 2) : sourceAnchor.quote)
+    ? (contextEnabled ? buildContextQuoteRange(sourceAnchor, sourceAnchors, contextBefore, contextAfter) : sourceAnchor.quote)
     : '';
   const targetQuote = targetAnchor
-    ? (contextEnabled ? buildContextQuote(targetAnchor, targetAnchors, 2) : targetAnchor.quote)
+    ? (contextEnabled ? buildContextQuoteRange(targetAnchor, targetAnchors, contextBefore, contextAfter) : targetAnchor.quote)
     : '';
 
   // Update editable text when source/target quotes change
@@ -334,6 +336,8 @@ export default function AIAuditModal({
     setError(null);
     setTask('audit');
     setIncludeContext(true);
+    setContextBefore(2);
+    setContextAfter(2);
     setPrompt(null);
     setCopyState('idle');
   };
@@ -362,15 +366,44 @@ export default function AIAuditModal({
         </div>
 
         {task === 'audit' && (
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={includeContext}
-              onChange={(e) => setIncludeContext(e.target.checked)}
-              disabled={loading}
-            />
-            Include surrounding rows (±2)
-          </label>
+          <div className="space-y-2 text-sm text-gray-700">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={includeContext}
+                onChange={(e) => setIncludeContext(e.target.checked)}
+                disabled={loading}
+              />
+              Include surrounding rows
+            </label>
+            {includeContext && (
+              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600">
+                <label className="flex items-center gap-2">
+                  Before
+                  <input
+                    type="number"
+                    min={0}
+                    value={contextBefore}
+                    onChange={(e) => setContextBefore(Math.max(0, Number(e.target.value)))}
+                    className="w-16 border rounded px-2 py-1 text-xs"
+                    disabled={loading}
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  After
+                  <input
+                    type="number"
+                    min={0}
+                    value={contextAfter}
+                    onChange={(e) => setContextAfter(Math.max(0, Number(e.target.value)))}
+                    className="w-16 border rounded px-2 py-1 text-xs"
+                    disabled={loading}
+                  />
+                </label>
+                <span className="text-gray-500">Example: x-2 to x+1</span>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Source and Target Quotes - Editable */}
@@ -470,10 +503,13 @@ export default function AIAuditModal({
   );
 }
 
-function buildContextQuote(anchor: Anchor, anchors: Anchor[], radius: number): string {
+function buildContextQuoteRange(anchor: Anchor, anchors: Anchor[], before: number, after: number): string {
   if (!anchor.rowNumber) {
     return anchor.quote;
   }
+
+  const safeBefore = Math.max(0, Number.isFinite(before) ? before : 0);
+  const safeAfter = Math.max(0, Number.isFinite(after) ? after : 0);
 
   const ordered = anchors
     .filter((item) => item.rowNumber != null)
@@ -485,8 +521,8 @@ function buildContextQuote(anchor: Anchor, anchors: Anchor[], radius: number): s
     return anchor.quote;
   }
 
-  const start = Math.max(0, index - radius);
-  const end = Math.min(ordered.length, index + radius + 1);
+  const start = Math.max(0, index - safeBefore);
+  const end = Math.min(ordered.length, index + safeAfter + 1);
   return ordered.slice(start, end).map((item) => item.quote).join("\n");
 }
 

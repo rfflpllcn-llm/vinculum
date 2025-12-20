@@ -42,7 +42,12 @@ MINE
 
 [x] implement the possibility for the user to download the chunks and the alignments jsonl files after their generation
 [x] make Source and Target Text in "AI Alignment Audit" editable, so that user can manually edit them before generating the prompt
+[x] in "Dual View Setup" / "Generate from PDFs" / "2. Select PDF Documents", "EN PDF Document" and "IT PDF Document" seem to be hardcoded (line 589 in src/components/AlignmentUploadPanel.tsx)
 [] store the prompt in "AI Alignment Audit" separately from the code where it is used. the idea is in the future to create a collection of multiple prompts the user will choose from. or assign a prompt to each task tyoe
+[] add the possibility for the user to specify which of the uploaded pdfs is in the original language. a boolean property like isOriginal must be defined. the idea is that in further development, the isOriginal property will be used to
+create prompts that ask to compare the translations against the original. if the original is not in "en", "it", "de", then the system will provide a faithful translation in english of the original.
+
+[x] specify if the third pdf will be shown (triple view) or remain in background
 
 IDEAS:
 [] let user have the possibility to extend/reduce  Source and Target Text in "AI Alignment Audit" adding or removing lines
