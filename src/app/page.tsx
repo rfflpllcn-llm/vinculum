@@ -12,6 +12,7 @@ import AlignmentVisualization from "@/components/AlignmentVisualization";
 import AIAuditModal from "@/components/AIAuditModal";
 import AlignmentUploadPanel from "@/components/AlignmentUploadPanel";
 import SearchPanel from "@/components/SearchPanel";
+import AuditHistoryPanel from "@/components/AuditHistoryPanel";
 import { Document, NormalizedRect, Anchor, ViewMode, Alignment } from "@/types/schemas";
 import { generateUUID } from "@/lib/utils";
 import { getCachedPDF, cachePDF, isPDFCached } from "@/lib/pdfCache";
@@ -43,6 +44,7 @@ export default function Home() {
   const [syncScrollEnabled, setSyncScrollEnabled] = useState(true);
   const [selectedAlignment, setSelectedAlignment] = useState<Alignment | null>(null);
   const [showAuditModal, setShowAuditModal] = useState(false);
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false);
   const [sourceDocId, setSourceDocId] = useState<string>('');
   const [targetDocId, setTargetDocId] = useState<string>('');
   const [currentSourcePage, setCurrentSourcePage] = useState<number>(1);
@@ -571,6 +573,12 @@ export default function Home() {
             <button className="text-gray-700 hover:text-gray-900">
               Settings
             </button>
+            <button
+              onClick={() => setAuditHistoryOpen(true)}
+              className="text-gray-700 hover:text-gray-900 font-medium"
+            >
+              Audit History
+            </button>
           </div>
           <div className="flex items-center space-x-4">
             {viewMode === 'dual' && sourceDocument && targetDocument && (
@@ -805,6 +813,12 @@ export default function Home() {
         originalLanguageCode={originalLanguage}
         alignmentMeta={alignmentMeta}
         chunkMap={chunkMap}
+      />
+
+      <AuditHistoryPanel
+        isOpen={auditHistoryOpen}
+        onClose={() => setAuditHistoryOpen(false)}
+        alignmentId={selectedAlignment?.alignmentId}
       />
     </main>
   );

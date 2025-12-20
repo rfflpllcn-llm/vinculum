@@ -63,6 +63,13 @@ export default function AIAuditModal({
   const [editableSourceText, setEditableSourceText] = useState<string>('');
   const [editableTargetText, setEditableTargetText] = useState<string>('');
 
+  // Audit saving state
+  const [gptResult, setGptResult] = useState<string>('');
+  const [gptModel, setGptModel] = useState<string>('gpt-4');
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const contextEnabled = task === 'audit' && includeContext;
   const sourceQuote = sourceAnchor
     ? (contextEnabled ? buildContextQuoteRange(sourceAnchor, sourceAnchors, contextBefore, contextAfter) : sourceAnchor.quote)
@@ -330,6 +337,47 @@ export default function AIAuditModal({
     }
   };
 
+  const handleSaveResult = async () => {
+    if (!prompt || !gptResult) {
+      setSaveError('Both prompt and result are required');
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      const response = await authFetch('/api/ai/audit/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alignmentId: alignment?.alignmentId || null,
+          promptText: prompt,
+          gptResponse: gptResult,
+          gptModel,
+          taskType: task,
+          sourceText: editableSourceText,
+          targetText: editableTargetText,
+          originalText: null, // TODO: build original text if needed
+          sourceLanguage: sourceLanguageCode,
+          targetLanguage: targetLanguageCode,
+          originalLanguage: originalLanguageCode,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to save');
+
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Reset state when modal opens
   const handleOpen = () => {
     setResult(null);
@@ -340,6 +388,11 @@ export default function AIAuditModal({
     setContextAfter(2);
     setPrompt(null);
     setCopyState('idle');
+    setGptResult('');
+    setGptModel('gpt-4');
+    setSaving(false);
+    setSaveSuccess(false);
+    setSaveError(null);
   };
 
   return (
@@ -478,6 +531,57 @@ export default function AIAuditModal({
               value={prompt}
               className="w-full h-64 border rounded p-2 text-xs font-mono"
             />
+          </div>
+        )}
+
+        {/* GPT Result Input & Save */}
+        {prompt && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Paste GPT Result</h3>
+              <select
+                value={gptModel}
+                onChange={(e) => setGptModel(e.target.value)}
+                className="text-xs border rounded px-2 py-1"
+              >
+                <option value="gpt-4">GPT-4</option>
+                <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                <option value="o1">o1</option>
+                <option value="o1-mini">o1-mini</option>
+              </select>
+            </div>
+            <textarea
+              value={gptResult}
+              onChange={(e) => setGptResult(e.target.value)}
+              placeholder="Paste the markdown table result from GPT here..."
+              className="w-full h-64 border rounded p-2 text-xs font-mono resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+
+            {/* Save Button */}
+            <button
+              onClick={handleSaveResult}
+              disabled={!gptResult || saving}
+              className="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {saving ? 'Saving...' : 'Save Result'}
+            </button>
+
+            {/* Success Message */}
+            {saveSuccess && (
+              <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded">
+                <p className="font-semibold">Success!</p>
+                <p className="text-sm">Audit result saved to history.</p>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {saveError && (
+              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
+                <p className="font-semibold">Error:</p>
+                <p className="text-sm">{saveError}</p>
+              </div>
+            )}
           </div>
         )}
 

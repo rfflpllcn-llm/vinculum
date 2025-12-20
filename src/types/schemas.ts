@@ -230,3 +230,70 @@ export type CreateDocument = Omit<Document, "documentId" | "createdAt" | "update
 export type CreateAnchor = Omit<Anchor, "anchorId" | "createdAt" | "quoteHash">;
 export type CreateNote = Omit<Note, "noteId" | "createdAt" | "updatedAt" | "deleted">;
 export type CreateAlignment = Omit<Alignment, "alignmentId" | "createdAt">;
+
+// ============================================================================
+// 12. Audit History (Phase 1)
+// ============================================================================
+
+/**
+ * Audit Session - represents a saved AI audit interaction
+ */
+export interface AuditSession {
+  auditId: UUID;
+  userId: string; // Stable NextAuth user ID
+  userEmail: string | null; // Metadata only
+  alignmentId: UUID | null;
+  promptText: string;
+  gptResponse: string;
+  gptModel: string;
+  taskType: AITask;
+  sourceText: string;
+  targetText: string;
+  originalText: string | null;
+  sourceLanguage: string | null;
+  targetLanguage: string | null;
+  originalLanguage: string | null;
+  createdAt: string; // ISO-8601
+  updatedAt: string; // ISO-8601
+}
+
+/**
+ * Request body for saving audit session
+ */
+export interface SaveAuditSessionRequest {
+  alignmentId: string | null;
+  promptText: string;
+  gptResponse: string;
+  gptModel: string;
+  taskType: AITask;
+  sourceText: string;
+  targetText: string;
+  originalText: string | null;
+  sourceLanguage: string | null;
+  targetLanguage: string | null;
+  originalLanguage: string | null;
+}
+
+/**
+ * Response for save audit session
+ */
+export interface SaveAuditSessionResponse {
+  audit: AuditSession;
+}
+
+/**
+ * Query parameters for fetching audit history
+ */
+export interface GetAuditHistoryParams {
+  alignmentId?: string | null;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Response for get audit history
+ */
+export interface GetAuditHistoryResponse {
+  audits: AuditSession[];
+  total: number;
+}
