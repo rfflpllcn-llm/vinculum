@@ -11,7 +11,6 @@ import {
   hashFileContent,
   checkCache,
   saveToCache,
-  downloadCachedFile,
 } from "@/lib/jsonlCache";
 import { createTask, updateTask } from "@/lib/taskManager";
 import { spawn } from "child_process";

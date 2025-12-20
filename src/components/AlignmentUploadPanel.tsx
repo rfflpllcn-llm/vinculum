@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Document } from '@/types/schemas';
 import { authFetch } from '@/lib/authFetch';
 
@@ -42,6 +42,49 @@ const getNextAvailableLanguage = (existing: string[]) =>
 const formatLanguageLabel = (code: string) => {
   const name = getLanguageName(code);
   return name ? `${code.toUpperCase()} · ${name}` : code.toUpperCase();
+};
+
+const parseLangsFromFilename = (filename: string): { sourceLang?: string; targetLang?: string } => {
+  const base = filename.replace(/\.jsonl$/i, "");
+  const match = base.match(/([a-z]{2,})-([a-z]{2,})$/i);
+  if (!match) {
+    return {};
+  }
+  return { sourceLang: match[1].toLowerCase(), targetLang: match[2].toLowerCase() };
+};
+
+const normalizeAlignments = (alignments: any): Array<{
+  driveFileId: string;
+  filename: string;
+  sourceLang?: string;
+  targetLang?: string;
+}> => {
+  if (Array.isArray(alignments)) {
+    return alignments.map((alignment) => {
+      const filename = alignment.filename || "alignment.jsonl";
+      const parsed = parseLangsFromFilename(filename);
+      return {
+        driveFileId: alignment.driveFileId || alignment.path,
+        filename,
+        sourceLang: alignment.sourceLang || parsed.sourceLang,
+        targetLang: alignment.targetLang || parsed.targetLang,
+      };
+    });
+  }
+
+  if (alignments && typeof alignments === "object") {
+    return Object.entries(alignments).map(([key, value]: [string, any]) => {
+      const parsed = parseLangsFromFilename(key);
+      return {
+        driveFileId: value.path || value.driveFileId,
+        filename: `${key}.jsonl`,
+        sourceLang: parsed.sourceLang,
+        targetLang: parsed.targetLang,
+      };
+    });
+  }
+
+  return [];
 };
 
 /**
@@ -177,59 +220,7 @@ export default function AlignmentUploadPanel({
     uploadTargetLanguage,
   ]);
 
-  const downloadDriveFile = async (fileId: string, filename: string): Promise<File> => {
-    const response = await authFetch(`/api/documents/${fileId}`);
-    if (!response.ok) {
-      throw new Error(`Failed to download ${filename}`);
-    }
-    const buffer = await response.arrayBuffer();
-    return new File([buffer], filename, { type: "application/jsonl" });
-  };
-
-  const parseLangsFromFilename = (filename: string): { sourceLang?: string; targetLang?: string } => {
-    const base = filename.replace(/\.jsonl$/i, "");
-    const match = base.match(/([a-z]{2,})-([a-z]{2,})$/i);
-    if (!match) {
-      return {};
-    }
-    return { sourceLang: match[1].toLowerCase(), targetLang: match[2].toLowerCase() };
-  };
-
-  const normalizeAlignments = (alignments: any): Array<{
-    driveFileId: string;
-    filename: string;
-    sourceLang?: string;
-    targetLang?: string;
-  }> => {
-    if (Array.isArray(alignments)) {
-      return alignments.map((alignment) => {
-        const filename = alignment.filename || "alignment.jsonl";
-        const parsed = parseLangsFromFilename(filename);
-        return {
-          driveFileId: alignment.driveFileId || alignment.path,
-          filename,
-          sourceLang: alignment.sourceLang || parsed.sourceLang,
-          targetLang: alignment.targetLang || parsed.targetLang,
-        };
-      });
-    }
-
-    if (alignments && typeof alignments === "object") {
-      return Object.entries(alignments).map(([key, value]: [string, any]) => {
-        const parsed = parseLangsFromFilename(key);
-        return {
-          driveFileId: value.path || value.driveFileId,
-          filename: `${key}.jsonl`,
-          sourceLang: parsed.sourceLang,
-          targetLang: parsed.targetLang,
-        };
-      });
-    }
-
-    return [];
-  };
-
-  const getDocsForAlignment = (sourceLang?: string, targetLang?: string) => {
+  const getDocsForAlignment = useCallback((sourceLang?: string, targetLang?: string) => {
     if (pdfSource !== 'drive') {
       throw new Error('Cached files are available, but auto-load requires Drive PDFs.');
     }
@@ -248,9 +239,18 @@ export default function AlignmentUploadPanel({
     }
 
     return { sourceDoc, targetDoc };
-  };
+  }, [documents, pdfDocIds, pdfSource]);
 
-  const useCachedFiles = async (data: any) => {
+  const loadCachedFiles = useCallback(async (data: any) => {
+    const downloadDriveFile = async (fileId: string, filename: string): Promise<File> => {
+      const response = await authFetch(`/api/documents/${fileId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to download ${filename}`);
+      }
+      const buffer = await response.arrayBuffer();
+      return new File([buffer], filename, { type: "application/jsonl" });
+    };
+
     const chunksId = data.chunks?.driveFileId || data.chunks?.path;
     if (!chunksId) {
       throw new Error('Cached chunks file not found.');
@@ -319,7 +319,7 @@ export default function AlignmentUploadPanel({
         originalLanguage,
       }
     );
-  };
+  }, [getDocsForAlignment, onUpload, originalLanguage, pdfSource, visibleLanguages]);
 
   const handleUpload = async () => {
     if (!sourceDocId || !targetDocId || !chunksFile || !alignmentsFile) {
@@ -383,7 +383,7 @@ export default function AlignmentUploadPanel({
           }
 
           try {
-            const result = await useCachedFiles(data.result);
+            const result = await loadCachedFiles(data.result);
             if (result === null) {
               // No alignment files generated - this shouldn't happen after completion
               setError('Generation completed but no alignment files were created. Please try again.');
@@ -402,7 +402,7 @@ export default function AlignmentUploadPanel({
     }, 2000); // Poll every 2 seconds
 
     return () => clearInterval(pollInterval);
-  }, [taskId, generating]);
+  }, [taskId, generating, loadCachedFiles]);
 
   const handleGenerate = async () => {
     if (languages.length < 2) {
@@ -498,7 +498,7 @@ export default function AlignmentUploadPanel({
 
       if (data.cached) {
         try {
-          const result = await useCachedFiles(data);
+          const result = await loadCachedFiles(data);
           if (result === null) {
             // Cache found chunks but not alignments - tell user to regenerate
             setError('Cached chunks found but alignment files are missing. The system will now generate alignment files. Please click "Generate Alignment Files" again to proceed.');
@@ -626,10 +626,16 @@ export default function AlignmentUploadPanel({
   };
 
   const canUpload = sourceDocId && targetDocId && chunksFile && alignmentsFile && !uploading;
-  const canGenerate = languages.length >= 2 && !!originalLanguage && !generating &&
-    (pdfSource === 'drive'
-      ? languages.every(lang => pdfDocIds[lang])
-      : languages.every(lang => pdfFiles[lang]));
+  const missingDocs = pdfSource === 'drive'
+    ? languages.filter((lang) => !pdfDocIds[lang])
+    : languages.filter((lang) => !pdfFiles[lang]);
+  const missingOriginal = !originalLanguage;
+  const missingVisible = visibleLanguages.length !== 2;
+  const canGenerate = languages.length >= 2 &&
+    !generating &&
+    missingDocs.length === 0 &&
+    !missingOriginal &&
+    !missingVisible;
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
@@ -1137,9 +1143,18 @@ export default function AlignmentUploadPanel({
             </button>
             {!canGenerate && !generating && (
               <p className="text-sm text-gray-500 text-center mt-2">
-                {pdfSource === 'drive'
-                  ? 'Select PDF documents for all languages'
-                  : 'Upload PDF files for all languages'}
+                {missingDocs.length > 0
+                  ? `${pdfSource === 'drive' ? 'Select' : 'Upload'} PDFs for: ${missingDocs.join(', ')}`
+                  : missingOriginal
+                    ? 'Select the original language'
+                    : missingVisible
+                      ? 'Select exactly 2 visible languages for dual view'
+                      : 'Complete all fields above'}
+              </p>
+            )}
+            {pdfSource === 'drive' && documents.length === 0 && (
+              <p className="text-sm text-yellow-700 text-center mt-2">
+                No Drive PDFs found. Open Library once to refresh, then retry.
               </p>
             )}
           </div>

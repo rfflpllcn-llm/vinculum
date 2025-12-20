@@ -68,7 +68,8 @@ Vinculum is a **client-centric web application** with:
 ### Identity model
 
 - One user ↔ one Drive namespace  
-- No local user database (v1)
+- No local user database for auth (v1)  
+- Supabase stores document registry + audit history (server-side only)
 
 ### Security constraints
 
@@ -95,13 +96,18 @@ Subfolders:
 - JSON files, versioned  
 - One logical entity per file where feasible
 
+### Supplemental storage
+
+- Supabase (PostgreSQL) for document registry and audit history  
+- Server-only access via service role key  
+
 ---
 
 ## 6\. Metadata Persistence
 
 ### Entities stored
 
-- Documents  
+- Documents (Drive files + Supabase registry)  
 - Anchors  
 - Notes  
 - Alignments
@@ -220,4 +226,3 @@ REQUIRE:
 
 - update to this document  
 - entry in `09_DECISIONS.md`
-

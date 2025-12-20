@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
     // Get query parameters
     const searchParams = req.nextUrl.searchParams;
     const fileId = searchParams.get("fileId");
-    const filename = searchParams.get("filename") || "download.jsonl";
+    const requestedFilename = searchParams.get("filename") || "download.jsonl";
+    const filename = sanitizeFilename(requestedFilename) || "download.jsonl";
 
     if (!fileId) {
       return NextResponse.json(
@@ -49,4 +50,10 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function sanitizeFilename(input: string): string {
+  const trimmed = input.trim();
+  const safe = trimmed.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return safe.slice(0, 200);
 }

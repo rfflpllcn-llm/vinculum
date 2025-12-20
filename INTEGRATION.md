@@ -169,6 +169,9 @@ Required:
 - `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
 - `NEXTAUTH_URL` - Application URL (e.g., https://yourapp.azurewebsites.net)
 - `NEXTAUTH_SECRET` - Random secret for session encryption
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (server-only)
 
 Optional:
 - `OPENAI_API_KEY` - For AI audit features

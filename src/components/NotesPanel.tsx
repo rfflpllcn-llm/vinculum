@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Anchor } from "@/types/schemas";
 
@@ -12,18 +12,36 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 
 interface NotesPanelProps {
   selectedAnchor: Anchor | null;
+  anchors: Anchor[];
   noteContent: string;
+  noteTags: string[];
   onNoteChange: (content: string) => void;
+  onTagsChange: (tags: string[]) => void;
   onNoteSave: () => void;
+  onNoteDelete: () => void;
+  onSelectAnchor: (anchor: Anchor) => void;
+  showAnchors: boolean;
+  onToggleAnchors: (enabled: boolean) => void;
 }
 
 export default function NotesPanel({
   selectedAnchor,
+  anchors,
   noteContent,
+  noteTags,
   onNoteChange,
+  onTagsChange,
   onNoteSave,
+  onNoteDelete,
+  onSelectAnchor,
+  showAnchors,
+  onToggleAnchors,
 }: NotesPanelProps) {
   const [hasChanges, setHasChanges] = useState(false);
+
+  useEffect(() => {
+    setHasChanges(false);
+  }, [selectedAnchor]);
 
   const handleChange = (value: string | undefined) => {
     if (value !== undefined) {
@@ -41,17 +59,57 @@ export default function NotesPanel({
     <div className="w-96 border-l border-gray-200 bg-white flex flex-col">
       <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-semibold text-gray-900">Notes</h3>
-        {selectedAnchor && hasChanges && (
-          <button
-            onClick={handleSave}
-            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-          >
-            Save
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={showAnchors}
+              onChange={(e) => onToggleAnchors(e.target.checked)}
+            />
+            Show my anchors
+          </label>
+          {selectedAnchor && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSave}
+                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                disabled={!hasChanges}
+              >
+                Save
+              </button>
+              <button
+                onClick={onNoteDelete}
+                className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
+        {anchors.length > 0 && (
+          <div className="border-b bg-white">
+            <div className="px-3 py-2 text-xs text-gray-500">My anchors</div>
+            <div className="max-h-40 overflow-y-auto divide-y">
+              {anchors.map((anchor) => (
+                <button
+                  key={anchor.anchorId}
+                  onClick={() => onSelectAnchor(anchor)}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${
+                    selectedAnchor?.anchorId === anchor.anchorId ? "bg-blue-50" : ""
+                  }`}
+                >
+                  <div className="text-gray-700 truncate">
+                    {anchor.quote || "Untitled anchor"}
+                  </div>
+                  <div className="text-[11px] text-gray-500">Page {anchor.page}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {selectedAnchor ? (
           <>
             <div className="p-3 border-b bg-gray-50">
@@ -65,6 +123,23 @@ export default function NotesPanel({
             </div>
 
             <div className="flex-1 overflow-hidden">
+              <div className="p-3 border-b bg-gray-50">
+                <label className="block text-xs text-gray-500 mb-1">Tags (comma-separated)</label>
+                <input
+                  type="text"
+                  value={noteTags.join(", ")}
+                  onChange={(e) => {
+                    const next = e.target.value
+                      .split(",")
+                      .map((tag) => tag.trim())
+                      .filter(Boolean);
+                    onTagsChange(next);
+                    setHasChanges(true);
+                  }}
+                  className="w-full border rounded px-2 py-1 text-sm"
+                  placeholder="theme, translation, motif"
+                />
+              </div>
               <MonacoEditor
                 height="100%"
                 defaultLanguage="markdown"

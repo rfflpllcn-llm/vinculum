@@ -13,8 +13,7 @@ import AIAuditModal from "@/components/AIAuditModal";
 import AlignmentUploadPanel from "@/components/AlignmentUploadPanel";
 import SearchPanel from "@/components/SearchPanel";
 import AuditHistoryPanel from "@/components/AuditHistoryPanel";
-import { Document, NormalizedRect, Anchor, ViewMode, Alignment } from "@/types/schemas";
-import { generateUUID } from "@/lib/utils";
+import { Document, NormalizedRect, Anchor, ViewMode, Alignment, Note } from "@/types/schemas";
 import { getCachedPDF, cachePDF, isPDFCached } from "@/lib/pdfCache";
 import { authFetch } from "@/lib/authFetch";
 
@@ -29,7 +28,22 @@ export default function Home() {
   const [loadingFile, setLoadingFile] = useState(false);
   const [loadingAlignmentData, setLoadingAlignmentData] = useState(false);
   const [selectedAnchor, setSelectedAnchor] = useState<Anchor | null>(null);
+  const [singleViewAnchors, setSingleViewAnchors] = useState<Anchor[]>([]);
+  const [singleViewNotes, setSingleViewNotes] = useState<Map<string, Note>>(new Map());
   const [noteContent, setNoteContent] = useState("");
+  const [noteTags, setNoteTags] = useState<string[]>([]);
+  const [showSingleViewAnchors, setShowSingleViewAnchors] = useState(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("showSingleViewAnchors");
+    if (saved !== null) {
+      setShowSingleViewAnchors(saved === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("showSingleViewAnchors", String(showSingleViewAnchors));
+  }, [showSingleViewAnchors]);
 
   // Dual view state
   const [viewMode, setViewMode] = useState<ViewMode>('single');
@@ -88,15 +102,39 @@ export default function Home() {
     const loadFile = async () => {
       if (!selectedDocument) {
         setFileData(null);
+        setSingleViewAnchors([]);
+        setSelectedAnchor(null);
+        setSingleViewNotes(new Map());
+        setNoteContent("");
+        setNoteTags([]);
         return;
       }
 
       setLoadingFile(true);
       try {
-        const response = await authFetch(`/api/documents/${selectedDocument.driveFileId}`);
+        const [response, anchorsResponse, notesResponse] = await Promise.all([
+          authFetch(`/api/documents/${selectedDocument.driveFileId}`),
+          authFetch(`/api/anchors?documentId=${selectedDocument.documentId}`),
+          authFetch(`/api/notes?documentId=${selectedDocument.documentId}`),
+        ]);
+
         if (!response.ok) throw new Error("Failed to load file");
         const arrayBuffer = await response.arrayBuffer();
         setFileData(arrayBuffer);
+
+        if (anchorsResponse.ok) {
+          const anchorsData = await anchorsResponse.json();
+          setSingleViewAnchors(anchorsData.anchors || []);
+        }
+
+        if (notesResponse.ok) {
+          const notesData = await notesResponse.json();
+          const noteMap = new Map<string, Note>();
+          (notesData.notes || []).forEach((note: Note) => {
+            noteMap.set(note.anchorId, note);
+          });
+          setSingleViewNotes(noteMap);
+        }
       } catch (error) {
         console.error("Error loading file:", error);
       } finally {
@@ -107,6 +145,18 @@ export default function Home() {
     loadFile();
   }, [selectedDocument]);
 
+  useEffect(() => {
+    if (!selectedAnchor) {
+      setNoteContent("");
+      setNoteTags([]);
+      return;
+    }
+
+    const note = singleViewNotes.get(selectedAnchor.anchorId);
+    setNoteContent(note?.markdown || "");
+    setNoteTags(note?.tags || []);
+  }, [selectedAnchor, singleViewNotes]);
+
   const handleAnchorCreate = async (page: number, rect: NormalizedRect, quote: string) => {
     if (!selectedDocument) return;
 
@@ -115,7 +165,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          documentId: generateUUID(), // Generate document ID on first anchor
+          documentId: selectedDocument.documentId,
           page,
           rect,
           quote,
@@ -126,6 +176,7 @@ export default function Home() {
 
       const { anchor } = await response.json();
       setSelectedAnchor(anchor);
+      setSingleViewAnchors((prev) => [...prev, anchor]);
       setNoteContent("");
     } catch (error) {
       console.error("Error creating anchor:", error);
@@ -134,15 +185,78 @@ export default function Home() {
   };
 
   const handleNoteSave = async () => {
-    if (!selectedAnchor || !noteContent) return;
+    if (!selectedAnchor || !selectedDocument) return;
 
     try {
-      // TODO: Implement note API
-      console.log("Saving note:", { anchorId: selectedAnchor.anchorId, noteContent });
+      const response = await authFetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentId: selectedDocument.documentId,
+          anchorId: selectedAnchor.anchorId,
+          markdown: noteContent,
+          tags: noteTags,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to save note");
+
+      if (data.note) {
+        setSingleViewNotes((prev) => {
+          const next = new Map(prev);
+          if (data.note.deleted) {
+            next.delete(data.note.anchorId);
+          } else {
+            next.set(data.note.anchorId, data.note);
+          }
+          return next;
+        });
+      }
+
       alert("Note saved successfully!");
     } catch (error) {
       console.error("Error saving note:", error);
       alert("Failed to save note");
+    }
+  };
+
+  const handleNoteDelete = async () => {
+    if (!selectedAnchor || !selectedDocument) return;
+
+    if (!confirm("Delete this note?")) {
+      return;
+    }
+
+    try {
+      const response = await authFetch("/api/notes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentId: selectedDocument.documentId,
+          anchorId: selectedAnchor.anchorId,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to delete note");
+
+      const anchorId = selectedAnchor.anchorId;
+      setSingleViewNotes((prev) => {
+        const next = new Map(prev);
+        next.delete(anchorId);
+        return next;
+      });
+      setSingleViewAnchors((prev) =>
+        prev.filter((anchor) => anchor.anchorId !== anchorId)
+      );
+      setSelectedAnchor(null);
+      setNoteContent("");
+      setNoteTags([]);
+      alert("Note deleted");
+    } catch (error) {
+      console.error("Error deleting note:", error);
+      alert("Failed to delete note");
     }
   };
 
@@ -192,15 +306,11 @@ export default function Home() {
     }
   ) => {
     try {
-      // Generate persistent document IDs
-      const newSourceDocId = generateUUID();
-      const newTargetDocId = generateUUID();
-
       const formData = new FormData();
       formData.append('chunksFile', chunksFile);
       formData.append('alignmentsFile', alignmentsFile);
-      formData.append('sourceDocId', newSourceDocId);
-      formData.append('targetDocId', newTargetDocId);
+      formData.append('sourceDocId', sourceDoc.documentId);
+      formData.append('targetDocId', targetDoc.documentId);
       formData.append('sourceDriveFileId', sourceDoc.driveFileId);
       formData.append('targetDriveFileId', targetDoc.driveFileId);
       if (sourceLanguageHint) formData.append('sourceLanguage', sourceLanguageHint);
@@ -217,12 +327,12 @@ export default function Home() {
       console.log('Alignment upload result:', result);
 
       // Store document IDs
-      setSourceDocId(newSourceDocId);
-      setTargetDocId(newTargetDocId);
+      setSourceDocId(sourceDoc.documentId);
+      setTargetDocId(targetDoc.documentId);
 
       // Load source and target documents with updated documentIds
-      setSourceDocument({ ...sourceDoc, documentId: newSourceDocId });
-      setTargetDocument({ ...targetDoc, documentId: newTargetDocId });
+      setSourceDocument(sourceDoc);
+      setTargetDocument(targetDoc);
 
       // Set loading state - PDFs will show but data is still loading
       setLoadingAlignmentData(true);
@@ -250,8 +360,8 @@ export default function Home() {
 
       // Load anchors from Drive
       const [sourceAnchorsData, targetAnchorsData] = await Promise.all([
-        authFetch(`/api/anchors?documentId=${newSourceDocId}`).then(r => r.json()),
-        authFetch(`/api/anchors?documentId=${newTargetDocId}`).then(r => r.json()),
+        authFetch(`/api/anchors?documentId=${sourceDoc.documentId}`).then(r => r.json()),
+        authFetch(`/api/anchors?documentId=${targetDoc.documentId}`).then(r => r.json()),
       ]);
 
       setSourceAnchors(sourceAnchorsData.anchors || []);
@@ -259,7 +369,7 @@ export default function Home() {
 
       // Load alignments
       const alignmentsResponse = await authFetch(
-        `/api/alignments?sourceDocId=${newSourceDocId}&targetDocId=${newTargetDocId}`
+        `/api/alignments?sourceDocId=${sourceDoc.documentId}&targetDocId=${targetDoc.documentId}`
       );
       const alignmentsData = await alignmentsResponse.json();
       setAlignments(alignmentsData.alignments || []);
@@ -622,6 +732,12 @@ export default function Home() {
                     document={selectedDocument}
                     fileData={fileData}
                     onAnchorCreate={handleAnchorCreate}
+                    highlightedAnchors={
+                      showSingleViewAnchors
+                        ? singleViewAnchors.filter((anchor) => anchor.rowNumber == null)
+                        : []
+                    }
+                    selectedAnchors={selectedAnchor ? [selectedAnchor] : []}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">
@@ -631,12 +747,21 @@ export default function Home() {
               </div>
 
               {/* Notes Panel */}
-              <NotesPanel
-                selectedAnchor={selectedAnchor}
-                noteContent={noteContent}
-                onNoteChange={setNoteContent}
-                onNoteSave={handleNoteSave}
-              />
+      <NotesPanel
+        selectedAnchor={selectedAnchor}
+        anchors={singleViewAnchors.filter(
+          (anchor) => anchor.rowNumber == null && singleViewNotes.has(anchor.anchorId)
+        )}
+        noteContent={noteContent}
+        noteTags={noteTags}
+        onNoteChange={setNoteContent}
+        onTagsChange={setNoteTags}
+        onNoteSave={handleNoteSave}
+        onNoteDelete={handleNoteDelete}
+        onSelectAnchor={setSelectedAnchor}
+        showAnchors={showSingleViewAnchors}
+        onToggleAnchors={setShowSingleViewAnchors}
+      />
             </>
           ) : selectedDocument ? (
             <div className="flex items-center justify-center w-full">

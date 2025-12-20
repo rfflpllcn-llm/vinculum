@@ -45,6 +45,34 @@ Represents a file stored in Google Drive.
 
 }
 
+### 2.1 Document Registry (Persistent Mapping)
+
+Documents MUST have a stable UUID across sessions. The registry maps
+`driveFileId` to `documentId` and stores metadata for lookups.
+
+{
+
+  "documentId": "uuid",
+
+  "driveFileId": "string (unique)",
+
+  "filename": "string",
+
+  "mimeType": "application/pdf | text/markdown",
+
+  "pageCount": 0,
+
+  "createdAt": "ISO-8601",
+
+  "updatedAt": "ISO-8601"
+
+}
+
+### Constraints
+
+- `driveFileId` MUST be unique  
+- `documentId` MUST remain stable for a given Drive file  
+
 ---
 
 ## 3\. Anchor (Primary Spatial Reference)
@@ -293,4 +321,3 @@ These schemas guarantee:
 - citation-grade traceability  
 - alignment-aware AI reasoning  
 - reproducible scholarly workflows
-

@@ -74,6 +74,28 @@ export class DriveService {
   }
 
   /**
+   * Resolve a metadata file path into a folder ID and filename.
+   * Supports subfolders like "Cache/foo.json".
+   */
+  private async resolveMetadataPath(
+    metadataPath: string,
+    rootFolderId: string
+  ): Promise<{ folderId: string; filename: string }> {
+    const parts = metadataPath.split("/").filter(Boolean);
+    const filename = parts.pop();
+    if (!filename) {
+      throw new Error("Invalid metadata path");
+    }
+
+    let folderId = await this.findOrCreateFolder(METADATA_FOLDER, rootFolderId);
+    for (const segment of parts) {
+      folderId = await this.findOrCreateFolder(segment, folderId);
+    }
+
+    return { folderId, filename };
+  }
+
+  /**
    * List documents from /Vinculum_Data/Books
    */
   async listDocuments(): Promise<Document[]> {
@@ -125,13 +147,11 @@ export class DriveService {
     mimeType: string = "application/json"
   ): Promise<string> {
     const rootFolder = await this.findOrCreateFolder(VINCULUM_FOLDER);
-    const metadataFolder = await this.findOrCreateFolder(
-      METADATA_FOLDER,
-      rootFolder
-    );
+    const { folderId: metadataFolder, filename: baseFilename } =
+      await this.resolveMetadataPath(filename, rootFolder);
 
     // Check if file exists
-    const query = `name='${filename}' and '${metadataFolder}' in parents and trashed=false`;
+    const query = `name='${baseFilename}' and '${metadataFolder}' in parents and trashed=false`;
     const existing = await this.drive.files.list({
       q: query,
       fields: "files(id)",
@@ -153,7 +173,7 @@ export class DriveService {
       await this.drive.files.update({
         fileId,
         requestBody: {
-          name: filename,
+          name: baseFilename,
           mimeType,
           // parents field not allowed in updates
         },
@@ -164,7 +184,7 @@ export class DriveService {
       // Create new - include parents field
       const file = await this.drive.files.create({
         requestBody: {
-          name: filename,
+          name: baseFilename,
           mimeType,
           parents: [metadataFolder],
         },
@@ -180,12 +200,10 @@ export class DriveService {
    */
   async loadMetadata(filename: string): Promise<any | null> {
     const rootFolder = await this.findOrCreateFolder(VINCULUM_FOLDER);
-    const metadataFolder = await this.findOrCreateFolder(
-      METADATA_FOLDER,
-      rootFolder
-    );
+    const { folderId: metadataFolder, filename: baseFilename } =
+      await this.resolveMetadataPath(filename, rootFolder);
 
-    const query = `name='${filename}' and '${metadataFolder}' in parents and trashed=false`;
+    const query = `name='${baseFilename}' and '${metadataFolder}' in parents and trashed=false`;
     const files = await this.drive.files.list({
       q: query,
       fields: "files(id)",
@@ -197,12 +215,39 @@ export class DriveService {
     }
 
     const fileId = files.data.files[0].id!;
-    const response = await this.drive.files.get({
-      fileId,
-      alt: "media",
-    });
+    const response = await this.drive.files.get(
+      {
+        fileId,
+        alt: "media",
+      },
+      { responseType: "arraybuffer" }
+    );
 
-    return response.data;
+    const data = response.data;
+    if (data == null) {
+      return null;
+    }
+
+    let text: string | null = null;
+    if (typeof data === "string") {
+      text = data;
+    } else if (data instanceof ArrayBuffer) {
+      text = Buffer.from(data).toString("utf-8");
+    } else if (Buffer.isBuffer(data)) {
+      text = data.toString("utf-8");
+    } else if (data instanceof Uint8Array) {
+      text = Buffer.from(data).toString("utf-8");
+    }
+
+    if (text !== null) {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    }
+
+    return data;
   }
 
   /**
@@ -212,14 +257,16 @@ export class DriveService {
    */
   async listMetadataFiles(pattern: string): Promise<string[]> {
     const rootFolder = await this.findOrCreateFolder(VINCULUM_FOLDER);
-    const metadataFolder = await this.findOrCreateFolder(
-      METADATA_FOLDER,
+    const parts = pattern.split("/").filter(Boolean);
+    const filenamePattern = parts.pop() || "";
+    const { folderId: metadataFolder } = await this.resolveMetadataPath(
+      parts.length > 0 ? `${parts.join("/")}/__placeholder__` : "__placeholder__",
       rootFolder
     );
 
     // Convert pattern to Google Drive query format
     // For now, support simple prefix matching
-    const prefix = pattern.replace('*', '');
+    const prefix = filenamePattern.replace('*', '');
     const query = `'${metadataFolder}' in parents and trashed=false and name contains '${prefix}'`;
 
     const response = await this.drive.files.list({

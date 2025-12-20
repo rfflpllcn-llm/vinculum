@@ -14,3 +14,8 @@ Reason: rich Markdown editing, extensible
 
 Decision: Google Drive  
 Reason: user ownership, persistence, trust  
+
+## Document identity
+
+Decision: Persist a documents registry in Supabase to map `driveFileId` → `documentId`.  
+Reason: stable document IDs across sessions and consistent anchor/alignments storage  

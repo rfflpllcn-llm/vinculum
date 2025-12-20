@@ -119,6 +119,25 @@ CREATE POLICY "Users can update own audit sessions"
   ON audit_sessions FOR UPDATE
   USING (user_email = current_setting('request.jwt.claims', true)::json->>'email');
 
+-- Create documents registry table (driveFileId -> documentId)
+-- Used server-side to keep documentId stable across sessions.
+CREATE TABLE documents (
+  document_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  drive_file_id TEXT NOT NULL UNIQUE,
+  filename TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  page_count INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_documents_drive_file_id ON documents(drive_file_id);
+
+CREATE TRIGGER update_documents_updated_at
+  BEFORE UPDATE ON documents
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
 CREATE POLICY "Users can delete own audit sessions"
   ON audit_sessions FOR DELETE
   USING (user_email = current_setting('request.jwt.claims', true)::json->>'email');

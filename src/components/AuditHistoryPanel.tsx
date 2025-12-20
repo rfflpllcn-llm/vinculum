@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AuditSession } from "@/types/schemas";
 import { authFetch } from "@/lib/authFetch";
 
@@ -22,13 +22,7 @@ export default function AuditHistoryPanel({
   const [selectedAudit, setSelectedAudit] = useState<AuditSession | null>(null);
   const [filterByAlignment, setFilterByAlignment] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadAudits();
-    }
-  }, [isOpen, filterByAlignment, alignmentId]);
-
-  const loadAudits = async () => {
+  const loadAudits = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -52,7 +46,13 @@ export default function AuditHistoryPanel({
     } finally {
       setLoading(false);
     }
-  };
+  }, [alignmentId, filterByAlignment]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadAudits();
+    }
+  }, [isOpen, loadAudits]);
 
   const handleDelete = async (auditId: string) => {
     if (!confirm('Are you sure you want to delete this audit?')) {

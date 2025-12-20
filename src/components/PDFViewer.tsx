@@ -232,7 +232,7 @@ export default function PDFViewer({
         behavior: 'smooth',
       });
     }
-  }, [externalScrollPosition]);
+  }, [externalScrollPosition, currentPage]);
 
   // Handle mouse events for selection
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {

@@ -25,7 +25,15 @@ GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your_random_secret_here
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
+
+### 2.1 Supabase Database Setup
+
+Create the `documents` table in Supabase (for stable `documentId` values).
+SQL is documented in `audit-history-storage-implementation-plan.md`.
 
 ### 3. Run Development Server
 

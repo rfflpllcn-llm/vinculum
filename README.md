@@ -36,6 +36,7 @@ Phase 1 features implemented:
 - Node.js 18+ and npm
 - Google Cloud Platform account with Drive API enabled
 - Google OAuth 2.0 credentials
+- Supabase project (PostgreSQL) for document registry and audit history
 
 ## Setup Instructions
 
@@ -80,6 +81,11 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret_here
 # NextAuth
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your_random_secret_here
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
 To generate a secure `NEXTAUTH_SECRET`:
@@ -100,6 +106,11 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 1. Sign in with your Google account
 2. Upload PDF or Markdown files to your Google Drive
 3. Place them in `/Vinculum_Data/Books/` folder (created automatically on first login)
+
+### 6. Supabase Database Setup
+
+Create the `documents` table in Supabase (used to keep `documentId` stable).
+SQL is documented in `audit-history-storage-implementation-plan.md`.
 
 ## Project Structure
 

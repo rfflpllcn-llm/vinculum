@@ -14,6 +14,35 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      documents: {
+        Row: {
+          document_id: string
+          drive_file_id: string
+          filename: string
+          mime_type: string
+          page_count: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          document_id?: string
+          drive_file_id: string
+          filename: string
+          mime_type: string
+          page_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          document_id?: string
+          drive_file_id?: string
+          filename?: string
+          mime_type?: string
+          page_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
       audit_sessions: {
         Row: {
           audit_id: string

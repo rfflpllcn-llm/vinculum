@@ -40,8 +40,13 @@ export async function POST(req: NextRequest) {
 
     // Persist to Drive
     const driveService = new DriveService(session.accessToken);
-    const filename = `anchor_${anchor.anchorId}.json`;
-    await driveService.saveMetadata(filename, anchor);
+    const filename = `anchors_${anchor.documentId}.json`;
+    const existingAnchors = await driveService.loadMetadata(filename);
+    const anchorsArray = Array.isArray(existingAnchors)
+      ? existingAnchors
+      : [];
+    anchorsArray.push(anchor);
+    await driveService.saveMetadata(filename, anchorsArray);
 
     return NextResponse.json({ anchor });
   } catch (error) {
