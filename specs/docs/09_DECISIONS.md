@@ -19,3 +19,8 @@ Reason: user ownership, persistence, trust
 
 Decision: Persist a documents registry in Supabase to map `driveFileId` → `documentId`.  
 Reason: stable document IDs across sessions and consistent anchor/alignments storage  
+
+## Anchor label field
+
+Decision: Add optional `label` (and `rowNumber`) to Anchor for non-text selections and alignment metadata.  
+Reason: support border/margin annotations while keeping anchors backward compatible  

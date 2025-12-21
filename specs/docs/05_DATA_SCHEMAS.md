@@ -103,6 +103,10 @@ An anchor binds text to a precise PDF location.
 
   "quoteHash": "sha256",
 
+  "label": "string (optional)",
+
+  "rowNumber": "number (optional)",
+
   "createdAt": "ISO-8601"
 
 }

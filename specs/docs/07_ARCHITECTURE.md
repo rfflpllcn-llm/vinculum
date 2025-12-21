@@ -18,17 +18,18 @@ Vinculum is a **client-centric web application** with:
 
 ## 2\. Frontend Layer (Browser)
 
+Status legend: items marked "(planned)" are not yet implemented; everything else reflects current behavior.
+
 ### Responsibilities
 
 - Render PDFs and Markdown  
-- Manage anchors and visual overlays  
+- Manage anchors and overlay rendering  
 - Handle user interactions  
 - Enforce UI constraints from `04_UI_SPECS.md`
 
 ### Key components
 
-- `PDFViewer`  
-- `AnchorOverlay`  
+- `PDFViewer` (includes anchor overlay rendering)  
 - `NotesPanel`  
 - `DualDocumentView`  
 - `AIPanel`

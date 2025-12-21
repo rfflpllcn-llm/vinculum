@@ -157,13 +157,8 @@ export default function NotesPanel({
                   }`}
                 >
                   <div className="text-gray-700 truncate font-medium">
-                    {anchor.label || anchor.quote || "Untitled anchor"}
+                    {anchor.quote || "Untitled anchor"}
                   </div>
-                  {anchor.label && (
-                    <div className="text-[10px] text-gray-500 italic truncate mt-0.5">
-                      {anchor.quote}
-                    </div>
-                  )}
                   <div className="flex items-center justify-between text-[11px] text-gray-500 mt-1">
                     <span>Page {anchor.page}</span>
                     <span>{notesByAnchorId.has(anchor.anchorId) ? "Has note" : "No note"}</span>
@@ -184,25 +179,10 @@ export default function NotesPanel({
               <div className="text-xs font-semibold text-blue-900 uppercase tracking-wide">Selected Note</div>
             </div>
             <div className="p-3 border-b bg-gradient-to-b from-blue-50 to-white">
-              {selectedAnchor.label ? (
-                <>
-                  <div className="text-xs text-gray-600 mb-1 font-medium">Label:</div>
-                  <div className="text-sm text-gray-900 font-semibold mb-2">
-                    {selectedAnchor.label}
-                  </div>
-                  <div className="text-xs text-gray-600 mb-1 font-medium">Quote:</div>
-                  <div className="text-xs text-gray-700 italic leading-relaxed">
-                    &ldquo;{selectedAnchor.quote}&rdquo;
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="text-xs text-gray-600 mb-1 font-medium">Anchor Quote:</div>
-                  <div className="text-sm text-gray-800 italic leading-relaxed">
-                    &ldquo;{selectedAnchor.quote}&rdquo;
-                  </div>
-                </>
-              )}
+              <div className="text-xs text-gray-600 mb-1 font-medium">Anchor Quote:</div>
+              <div className="text-sm text-gray-800 italic leading-relaxed">
+                &ldquo;{selectedAnchor.quote}&rdquo;
+              </div>
               <div className="text-xs text-gray-500 mt-2">
                 Page {selectedAnchor.page}
               </div>

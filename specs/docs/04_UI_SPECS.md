@@ -68,6 +68,7 @@ Manage Google Drive–backed documents.
 - Notes panel uses Monaco Editor  
 - Selecting text enables anchor creation  
 - Notes auto-save on edit
+- Status legend: items marked "(planned)" are not yet implemented; everything else reflects current behavior
 
 ---
 
@@ -82,9 +83,9 @@ Manage Google Drive–backed documents.
 
 ### Visual Feedback
 
-- Anchors are shown as translucent overlays  
-- Hovering highlights the anchor  
-- Clicking focuses the associated note
+- Anchors are listed in the notes panel  
+- Anchors render as translucent overlays when "Show my anchors" is enabled  
+- Clicking an anchor (overlay or list) focuses the associated note
 
 ### Constraints
 
@@ -212,4 +213,3 @@ Manage Google Drive–backed documents.
 - Visual theming  
 - Collaborative cursors  
 - Public sharing links
-
