@@ -18,7 +18,7 @@ interface NotesPanelProps {
   notesByAnchorId: Map<string, Note>;
   onNoteChange: (content: string) => void;
   onTagsChange: (tags: string[]) => void;
-  onNoteSave: () => void;
+  onNoteSave: (payload?: { markdown?: string; tags?: string[] }) => void;
   onNoteDelete: () => void;
   onSelectAnchor: (anchor: Anchor) => void;
   showAnchors: boolean;
@@ -41,10 +41,12 @@ export default function NotesPanel({
 }: NotesPanelProps) {
   const [hasChanges, setHasChanges] = useState(false);
   const [tagQuery, setTagQuery] = useState("");
+  const [tagInput, setTagInput] = useState("");
 
   useEffect(() => {
     setHasChanges(false);
-  }, [selectedAnchor]);
+    setTagInput(noteTags.join(", "));
+  }, [selectedAnchor, noteTags]);
 
   const handleChange = (value: string | undefined) => {
     if (value !== undefined) {
@@ -54,8 +56,26 @@ export default function NotesPanel({
   };
 
   const handleSave = () => {
-    onNoteSave();
+    const nextTags = tagInput
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    onTagsChange(nextTags);
+    onNoteSave({ markdown: noteContent, tags: nextTags });
     setHasChanges(false);
+  };
+
+  const handleAnchorSelect = (anchor: Anchor) => {
+    if (selectedAnchor && hasChanges) {
+      const nextTags = tagInput
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      onTagsChange(nextTags);
+      onNoteSave({ markdown: noteContent, tags: nextTags });
+      setHasChanges(false);
+    }
+    onSelectAnchor(anchor);
   };
 
   const normalizedTagQuery = tagQuery.trim().toLowerCase();
@@ -125,7 +145,7 @@ export default function NotesPanel({
               {filteredAnchors.map((anchor) => (
                 <button
                   key={anchor.anchorId}
-                  onClick={() => onSelectAnchor(anchor)}
+                  onClick={() => handleAnchorSelect(anchor)}
                   className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${
                     selectedAnchor?.anchorId === anchor.anchorId ? "bg-blue-50" : ""
                   }`}
@@ -164,14 +184,19 @@ export default function NotesPanel({
                 <label className="block text-xs text-gray-500 mb-1">Tags (comma-separated)</label>
                 <input
                   type="text"
-                  value={noteTags.join(", ")}
+                  value={tagInput}
                   onChange={(e) => {
-                    const next = e.target.value
+                    setTagInput(e.target.value);
+                    setHasChanges(true);
+                  }}
+                  onBlur={() => {
+                    const next = tagInput
                       .split(",")
                       .map((tag) => tag.trim())
                       .filter(Boolean);
                     onTagsChange(next);
-                    setHasChanges(true);
+                    onNoteSave({ tags: next });
+                    setHasChanges(false);
                   }}
                   className="w-full border rounded px-2 py-1 text-sm"
                   placeholder="theme, translation, motif"

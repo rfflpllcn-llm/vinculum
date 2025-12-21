@@ -495,24 +495,45 @@ export default function PDFViewer({
           bottom: rect.y + rect.height,
         };
 
-        // Calculate the center point of the text item
-        const centerX = (itemRect.left + itemRect.right) / 2;
-        const centerY = (itemRect.top + itemRect.bottom) / 2;
+        // Check if text item overlaps significantly with selection rectangle
+        // Calculate overlap area to avoid capturing text from adjacent lines
+        const hasOverlap =
+          itemRect.left < selRect.right &&
+          itemRect.right > selRect.left &&
+          itemRect.top < selRect.bottom &&
+          itemRect.bottom > selRect.top;
 
-        // Check if the center of the text is within the selection
-        // This provides more precise selection
-        const isInside =
-          centerX >= selRect.left &&
-          centerX <= selRect.right &&
-          centerY >= selRect.top &&
-          centerY <= selRect.bottom;
+        if (hasOverlap) {
+          // Calculate the overlapping area
+          const overlapLeft = Math.max(itemRect.left, selRect.left);
+          const overlapRight = Math.min(itemRect.right, selRect.right);
+          const overlapTop = Math.max(itemRect.top, selRect.top);
+          const overlapBottom = Math.min(itemRect.bottom, selRect.bottom);
 
-        if (isInside) {
-          selectedTexts.push({
-            text: item.str,
-            y: Math.min(y, y2),
-            x: Math.min(x, x2),
-          });
+          const overlapWidth = overlapRight - overlapLeft;
+          const overlapHeight = overlapBottom - overlapTop;
+          const overlapArea = overlapWidth * overlapHeight;
+
+          const itemWidth = itemRect.right - itemRect.left;
+          const itemHeight = itemRect.bottom - itemRect.top;
+          const itemArea = itemWidth * itemHeight;
+
+          // Calculate overlap ratio - what percentage of the text item is within selection
+          const overlapRatio = itemArea > 0 ? overlapArea / itemArea : 0;
+
+          // Also check vertical overlap - if selection covers most of text height, include it
+          const verticalOverlap = overlapHeight / itemHeight;
+
+          // Include text if:
+          // 1. At least 50% of text area is in selection, OR
+          // 2. At least 70% of text height overlaps (good for narrow horizontal selections)
+          if (overlapRatio >= 0.5 || verticalOverlap >= 0.7) {
+            selectedTexts.push({
+              text: item.str,
+              y: Math.min(y, y2),
+              x: Math.min(x, x2),
+            });
+          }
         }
       });
 
