@@ -84,15 +84,19 @@ export default function NotesPanel({
     .map((tag) => tag.trim())
     .filter(Boolean);
   const filteredAnchors = useMemo(() => {
-    if (queryTags.length === 0) return anchors;
-    return anchors.filter((anchor) => {
-      const note = notesByAnchorId.get(anchor.anchorId);
-      if (!note) return false;
-      const noteTags = note.tags.map((tag) => tag.toLowerCase());
-      return queryTags.every((queryTag) =>
-        noteTags.some((tag) => tag.includes(queryTag))
-      );
-    });
+    let result = anchors;
+    if (queryTags.length > 0) {
+      result = anchors.filter((anchor) => {
+        const note = notesByAnchorId.get(anchor.anchorId);
+        if (!note) return false;
+        const noteTags = note.tags.map((tag) => tag.toLowerCase());
+        return queryTags.every((queryTag) =>
+          noteTags.some((tag) => tag.includes(queryTag))
+        );
+      });
+    }
+    // Sort by page number
+    return result.sort((a, b) => a.page - b.page);
   }, [anchors, notesByAnchorId, queryTags]);
 
   return (
@@ -130,30 +134,32 @@ export default function NotesPanel({
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {showAnchors && anchors.length > 0 && (
-          <div className="border-b bg-white">
-            <div className="px-3 py-2 text-xs text-gray-500">My anchors</div>
-            <div className="px-3 pb-2">
+          <div className="bg-gray-50 border-b-2 border-gray-300">
+            <div className="px-3 py-2 bg-gray-100 border-b border-gray-200">
+              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wide">My Anchors</div>
+            </div>
+            <div className="px-3 py-2 bg-white">
               <input
                 type="text"
                 value={tagQuery}
                 onChange={(e) => setTagQuery(e.target.value)}
-                className="w-full border rounded px-2 py-1 text-xs"
+                className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Filter by tag..."
               />
             </div>
-            <div className="max-h-40 overflow-y-auto divide-y">
+            <div className="max-h-120 overflow-y-auto divide-y bg-white">
               {filteredAnchors.map((anchor) => (
                 <button
                   key={anchor.anchorId}
                   onClick={() => handleAnchorSelect(anchor)}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${
-                    selectedAnchor?.anchorId === anchor.anchorId ? "bg-blue-50" : ""
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                    selectedAnchor?.anchorId === anchor.anchorId ? "bg-blue-50 border-l-4 border-blue-500" : ""
                   }`}
                 >
-                  <div className="text-gray-700 truncate">
+                  <div className="text-gray-700 truncate font-medium">
                     {anchor.quote || "Untitled anchor"}
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-gray-500">
+                  <div className="flex items-center justify-between text-[11px] text-gray-500 mt-1">
                     <span>Page {anchor.page}</span>
                     <span>{notesByAnchorId.has(anchor.anchorId) ? "Has note" : "No note"}</span>
                   </div>
@@ -168,10 +174,13 @@ export default function NotesPanel({
           </div>
         )}
         {selectedAnchor ? (
-          <>
-            <div className="p-3 border-b bg-gray-50">
-              <div className="text-xs text-gray-500 mb-1">Anchor Quote:</div>
-              <div className="text-sm text-gray-700 italic">
+          <div className="flex-1 flex flex-col overflow-hidden bg-white">
+            <div className="px-3 py-2 bg-blue-50 border-b border-blue-200">
+              <div className="text-xs font-semibold text-blue-900 uppercase tracking-wide">Selected Note</div>
+            </div>
+            <div className="p-3 border-b bg-gradient-to-b from-blue-50 to-white">
+              <div className="text-xs text-gray-600 mb-1 font-medium">Anchor Quote:</div>
+              <div className="text-sm text-gray-800 italic leading-relaxed">
                 &ldquo;{selectedAnchor.quote}&rdquo;
               </div>
               <div className="text-xs text-gray-500 mt-2">
@@ -179,9 +188,9 @@ export default function NotesPanel({
               </div>
             </div>
 
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden flex flex-col">
               <div className="p-3 border-b bg-gray-50">
-                <label className="block text-xs text-gray-500 mb-1">Tags (comma-separated)</label>
+                <label className="block text-xs text-gray-600 mb-1 font-medium">Tags (comma-separated)</label>
                 <input
                   type="text"
                   value={tagInput}
@@ -198,29 +207,31 @@ export default function NotesPanel({
                     onNoteSave({ tags: next });
                     setHasChanges(false);
                   }}
-                  className="w-full border rounded px-2 py-1 text-sm"
+                  className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="theme, translation, motif"
                 />
               </div>
-              <MonacoEditor
-                height="100%"
-                defaultLanguage="markdown"
-                value={noteContent}
-                onChange={handleChange}
-                theme="vs-light"
-                options={{
-                  minimap: { enabled: false },
-                  lineNumbers: "off",
-                  wordWrap: "on",
-                  padding: { top: 16, bottom: 16 },
-                  fontSize: 14,
-                  scrollBeyondLastLine: false,
-                }}
-              />
+              <div className="flex-1 overflow-hidden">
+                <MonacoEditor
+                  height="100%"
+                  defaultLanguage="markdown"
+                  value={noteContent}
+                  onChange={handleChange}
+                  theme="vs-light"
+                  options={{
+                    minimap: { enabled: false },
+                    lineNumbers: "off",
+                    wordWrap: "on",
+                    padding: { top: 16, bottom: 16 },
+                    fontSize: 14,
+                    scrollBeyondLastLine: false,
+                  }}
+                />
+              </div>
             </div>
-          </>
+          </div>
         ) : (
-          <div className="flex-1 p-4 flex items-center justify-center">
+          <div className="flex-1 p-4 flex items-center justify-center bg-gray-50">
             <p className="text-sm text-gray-500 text-center">
               Select text in the PDF to create an anchor and add notes.
             </p>
