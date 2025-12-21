@@ -13,7 +13,7 @@ import AIAuditModal from "@/components/AIAuditModal";
 import AlignmentUploadPanel from "@/components/AlignmentUploadPanel";
 import SearchPanel from "@/components/SearchPanel";
 import AuditHistoryPanel from "@/components/AuditHistoryPanel";
-import { Document, NormalizedRect, Anchor, ViewMode, Alignment, Note } from "@/types/schemas";
+import { Document, NormalizedRect, Anchor, ViewMode, Alignment, Note, ScrollPosition } from "@/types/schemas";
 import { getCachedPDF, cachePDF, isPDFCached } from "@/lib/pdfCache";
 import { authFetch } from "@/lib/authFetch";
 
@@ -33,6 +33,7 @@ export default function Home() {
   const [noteContent, setNoteContent] = useState("");
   const [noteTags, setNoteTags] = useState<string[]>([]);
   const [showSingleViewAnchors, setShowSingleViewAnchors] = useState(true);
+  const [singleViewScrollPosition, setSingleViewScrollPosition] = useState<ScrollPosition | undefined>(undefined);
 
   useEffect(() => {
     const saved = localStorage.getItem("showSingleViewAnchors");
@@ -157,6 +158,19 @@ export default function Home() {
     setNoteTags(note?.tags || []);
   }, [selectedAnchor, singleViewNotes]);
 
+  useEffect(() => {
+    if (!selectedAnchor) return;
+    const targetY = selectedAnchor.rect.y + selectedAnchor.rect.h / 2;
+    const normalizedY = Math.min(1, Math.max(0, targetY));
+    setSingleViewScrollPosition({
+      page: selectedAnchor.page,
+      offsetY: 0,
+      normalizedY,
+    });
+    const timer = setTimeout(() => setSingleViewScrollPosition(undefined), 100);
+    return () => clearTimeout(timer);
+  }, [selectedAnchor]);
+
   const handleAnchorCreate = async (page: number, rect: NormalizedRect, quote: string) => {
     if (!selectedDocument) return;
 
@@ -247,10 +261,6 @@ export default function Home() {
         next.delete(anchorId);
         return next;
       });
-      setSingleViewAnchors((prev) =>
-        prev.filter((anchor) => anchor.anchorId !== anchorId)
-      );
-      setSelectedAnchor(null);
       setNoteContent("");
       setNoteTags([]);
       alert("Note deleted");
@@ -732,6 +742,8 @@ export default function Home() {
                     document={selectedDocument}
                     fileData={fileData}
                     onAnchorCreate={handleAnchorCreate}
+                    onAnchorSelect={setSelectedAnchor}
+                    externalScrollPosition={singleViewScrollPosition}
                     highlightedAnchors={
                       showSingleViewAnchors
                         ? singleViewAnchors.filter((anchor) => anchor.rowNumber == null)
@@ -750,10 +762,11 @@ export default function Home() {
       <NotesPanel
         selectedAnchor={selectedAnchor}
         anchors={singleViewAnchors.filter(
-          (anchor) => anchor.rowNumber == null && singleViewNotes.has(anchor.anchorId)
+          (anchor) => anchor.rowNumber == null
         )}
         noteContent={noteContent}
         noteTags={noteTags}
+        notesByAnchorId={singleViewNotes}
         onNoteChange={setNoteContent}
         onTagsChange={setNoteTags}
         onNoteSave={handleNoteSave}

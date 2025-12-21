@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { Anchor } from "@/types/schemas";
+import { Anchor, Note } from "@/types/schemas";
 
 // Dynamically import Monaco to avoid SSR issues
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -15,6 +15,7 @@ interface NotesPanelProps {
   anchors: Anchor[];
   noteContent: string;
   noteTags: string[];
+  notesByAnchorId: Map<string, Note>;
   onNoteChange: (content: string) => void;
   onTagsChange: (tags: string[]) => void;
   onNoteSave: () => void;
@@ -29,6 +30,7 @@ export default function NotesPanel({
   anchors,
   noteContent,
   noteTags,
+  notesByAnchorId,
   onNoteChange,
   onTagsChange,
   onNoteSave,
@@ -89,7 +91,7 @@ export default function NotesPanel({
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {anchors.length > 0 && (
+        {showAnchors && anchors.length > 0 && (
           <div className="border-b bg-white">
             <div className="px-3 py-2 text-xs text-gray-500">My anchors</div>
             <div className="max-h-40 overflow-y-auto divide-y">
@@ -104,7 +106,10 @@ export default function NotesPanel({
                   <div className="text-gray-700 truncate">
                     {anchor.quote || "Untitled anchor"}
                   </div>
-                  <div className="text-[11px] text-gray-500">Page {anchor.page}</div>
+                  <div className="flex items-center justify-between text-[11px] text-gray-500">
+                    <span>Page {anchor.page}</span>
+                    <span>{notesByAnchorId.has(anchor.anchorId) ? "Has note" : "No note"}</span>
+                  </div>
                 </button>
               ))}
             </div>

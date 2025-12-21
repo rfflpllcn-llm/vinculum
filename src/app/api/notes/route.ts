@@ -159,16 +159,7 @@ export async function DELETE(req: NextRequest) {
 
     const deletedNote = nextNotes.find((note) => note.anchorId === anchorId) || null;
 
-    // Remove anchor as well (user-created anchors only)
-    const anchorsFilename = `anchors_${documentId}.json`;
-    const anchorsData = await driveService.loadMetadata(anchorsFilename);
-    const anchors = Array.isArray(anchorsData) ? anchorsData : [];
-    const remainingAnchors = anchors.filter((anchor) => anchor.anchorId !== anchorId);
-    if (remainingAnchors.length !== anchors.length) {
-      await driveService.saveMetadata(anchorsFilename, remainingAnchors);
-    }
-
-    return NextResponse.json({ note: deletedNote, anchorDeleted: true });
+    return NextResponse.json({ note: deletedNote });
   } catch (error) {
     console.error("Error deleting note:", error);
     return NextResponse.json(

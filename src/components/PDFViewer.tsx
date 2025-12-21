@@ -19,6 +19,7 @@ interface PDFViewerProps {
   highlightedAnchors?: Anchor[];
   selectedAnchors?: Anchor[]; // Anchors to highlight with selection color
   onPageChange?: (page: number) => void; // Callback when page changes
+  onAnchorSelect?: (anchor: Anchor) => void;
 }
 
 export default function PDFViewer({
@@ -31,6 +32,7 @@ export default function PDFViewer({
   highlightedAnchors = [],
   selectedAnchors = [],
   onPageChange,
+  onAnchorSelect,
 }: PDFViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,6 +47,7 @@ export default function PDFViewer({
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
   const [pageInputValue, setPageInputValue] = useState<string>(currentPage.toString());
+  const canSelectAnchors = Boolean(onAnchorSelect);
 
   // Load PDF document
   useEffect(() => {
@@ -665,12 +668,18 @@ export default function PDFViewer({
               return (
                 <div
                   key={anchor.anchorId}
-                  className="absolute border-2 border-yellow-500 bg-yellow-200 bg-opacity-20 pointer-events-none"
+                  className={`absolute border-2 border-yellow-500 bg-yellow-200 bg-opacity-20 ${
+                    canSelectAnchors ? "pointer-events-auto cursor-pointer" : "pointer-events-none"
+                  }`}
                   style={{
                     left: rect.x * canvas.width,
                     top: rect.y * canvas.height,
                     width: rect.w * canvas.width,
                     height: rect.h * canvas.height,
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAnchorSelect?.(anchor);
                   }}
                 />
               );
@@ -691,12 +700,18 @@ export default function PDFViewer({
               return (
                 <div
                   key={`selected-${anchor.anchorId}`}
-                  className="absolute border-2 border-green-600 bg-green-300 bg-opacity-40 pointer-events-none"
+                  className={`absolute border-2 border-green-600 bg-green-300 bg-opacity-40 ${
+                    canSelectAnchors ? "pointer-events-auto cursor-pointer" : "pointer-events-none"
+                  }`}
                   style={{
                     left: rect.x * canvas.width,
                     top: rect.y * canvas.height,
                     width: rect.w * canvas.width,
                     height: rect.h * canvas.height,
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAnchorSelect?.(anchor);
                   }}
                 />
               );
