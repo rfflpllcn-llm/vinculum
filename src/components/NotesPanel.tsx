@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Anchor, Note } from "@/types/schemas";
 
@@ -40,6 +40,7 @@ export default function NotesPanel({
   onToggleAnchors,
 }: NotesPanelProps) {
   const [hasChanges, setHasChanges] = useState(false);
+  const [tagQuery, setTagQuery] = useState("");
 
   useEffect(() => {
     setHasChanges(false);
@@ -57,8 +58,25 @@ export default function NotesPanel({
     setHasChanges(false);
   };
 
+  const normalizedTagQuery = tagQuery.trim().toLowerCase();
+  const queryTags = normalizedTagQuery
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+  const filteredAnchors = useMemo(() => {
+    if (queryTags.length === 0) return anchors;
+    return anchors.filter((anchor) => {
+      const note = notesByAnchorId.get(anchor.anchorId);
+      if (!note) return false;
+      const noteTags = note.tags.map((tag) => tag.toLowerCase());
+      return queryTags.every((queryTag) =>
+        noteTags.some((tag) => tag.includes(queryTag))
+      );
+    });
+  }, [anchors, notesByAnchorId, queryTags]);
+
   return (
-    <div className="w-96 border-l border-gray-200 bg-white flex flex-col">
+    <div className="w-96 border-l border-gray-200 bg-white flex flex-col min-h-0">
       <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-semibold text-gray-900">Notes</h3>
         <div className="flex items-center gap-3">
@@ -90,12 +108,21 @@ export default function NotesPanel({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {showAnchors && anchors.length > 0 && (
           <div className="border-b bg-white">
             <div className="px-3 py-2 text-xs text-gray-500">My anchors</div>
+            <div className="px-3 pb-2">
+              <input
+                type="text"
+                value={tagQuery}
+                onChange={(e) => setTagQuery(e.target.value)}
+                className="w-full border rounded px-2 py-1 text-xs"
+                placeholder="Filter by tag..."
+              />
+            </div>
             <div className="max-h-40 overflow-y-auto divide-y">
-              {anchors.map((anchor) => (
+              {filteredAnchors.map((anchor) => (
                 <button
                   key={anchor.anchorId}
                   onClick={() => onSelectAnchor(anchor)}
@@ -112,6 +139,11 @@ export default function NotesPanel({
                   </div>
                 </button>
               ))}
+              {filteredAnchors.length === 0 && (
+                <div className="px-3 py-2 text-[11px] text-gray-400">
+                  No anchors match that tag.
+                </div>
+              )}
             </div>
           </div>
         )}

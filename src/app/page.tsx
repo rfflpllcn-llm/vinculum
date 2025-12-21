@@ -668,7 +668,7 @@ export default function Home() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex h-screen flex-col">
       <div className="border-b border-gray-200 bg-white px-4 py-3">
         <nav className="flex items-center justify-between">
           <div className="flex space-x-6">
@@ -713,7 +713,6 @@ export default function Home() {
             <ViewModeToggle
               viewMode={viewMode}
               onChange={setViewMode}
-              disabled={viewMode === 'dual' && (!sourceDocument || !targetDocument)}
             />
             <span className="text-sm text-gray-600">{session.user?.email}</span>
             <button
@@ -726,13 +725,13 @@ export default function Home() {
         </nav>
       </div>
 
-      <div className="flex-1 flex bg-gray-50 overflow-hidden">
+      <div className="flex-1 flex bg-gray-50 overflow-hidden min-h-0">
         {viewMode === 'single' ? (
           /* Single View Mode */
           selectedDocument && fileData ? (
             <>
               {/* PDF/Document Viewer */}
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col min-h-0">
                 {loadingFile ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-gray-500">Loading document...</div>

@@ -554,7 +554,7 @@ export default function PDFViewer({
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-100">
+    <div className="flex flex-col h-full bg-gray-100 min-h-0">
       {/* Controls */}
       <div className="flex items-center justify-between p-3 bg-white border-b">
         {/* Page Navigation */}
