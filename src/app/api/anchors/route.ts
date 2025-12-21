@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
       rect: body.rect,
       quote: body.quote,
       quoteHash: computeQuoteHash(body.quote),
+      label: body.label, // Optional user-provided label
+      rowNumber: body.rowNumber, // Optional row number
       createdAt: getCurrentTimestamp(),
     };
 

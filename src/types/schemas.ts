@@ -53,6 +53,7 @@ export interface Anchor {
   rect: NormalizedRect;
   quote: string;
   quoteHash: string; // sha256
+  label?: string; // Optional user-provided label for geometric/border annotations
   rowNumber?: number; // Line number within page (1-indexed), derived from chunk order in alignments
   createdAt: string; // ISO-8601
 }

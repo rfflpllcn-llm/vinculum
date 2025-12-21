@@ -177,6 +177,26 @@ export default function Home() {
     if (!selectedDocument) return;
 
     try {
+      // Check if the quote is a placeholder (no text was extracted)
+      const isPlaceholder = quote.startsWith("Selected area on page");
+      let label: string | undefined;
+
+      if (isPlaceholder) {
+        // Prompt user for a descriptive label
+        const userLabel = window.prompt(
+          "No text found in selection. Enter a description for this annotation:",
+          ""
+        );
+
+        // If user cancels, don't create the anchor
+        if (userLabel === null) {
+          return;
+        }
+
+        // Use the label if provided
+        label = userLabel.trim() || undefined;
+      }
+
       const response = await authFetch("/api/anchors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -185,6 +205,7 @@ export default function Home() {
           page,
           rect,
           quote,
+          label,
         }),
       });
 
