@@ -32,13 +32,21 @@ export async function GET(req: NextRequest) {
     const filename = `notes_${documentId}.json`;
     const notesData = await driveService.loadMetadata(filename);
     const notes: Note[] = Array.isArray(notesData) ? notesData : [];
+    const normalizedNotes = notes.map((note) => ({
+      ...note,
+      tags: Array.isArray(note.tags)
+        ? note.tags
+        : typeof (note as any).tags === "string"
+          ? (note as any).tags.split(",").map((tag: string) => tag.trim()).filter(Boolean)
+          : [],
+    }));
 
     if (anchorId) {
-      const note = notes.find((item) => item.anchorId === anchorId && !item.deleted) || null;
+      const note = normalizedNotes.find((item) => item.anchorId === anchorId && !item.deleted) || null;
       return NextResponse.json({ note });
     }
 
-    return NextResponse.json({ notes: notes.filter((item) => !item.deleted) });
+    return NextResponse.json({ notes: normalizedNotes.filter((item) => !item.deleted) });
   } catch (error) {
     console.error("Error loading notes:", error);
     return NextResponse.json(
@@ -64,7 +72,14 @@ export async function POST(req: NextRequest) {
     const documentId = body.documentId as UUID | undefined;
     const anchorId = body.anchorId as UUID | undefined;
     const markdown = body.markdown as string | undefined;
-    const tags = Array.isArray(body.tags) ? body.tags : [];
+    const tags = Array.isArray(body.tags)
+      ? body.tags
+      : typeof body.tags === "string"
+        ? body.tags.split(",")
+        : [];
+    const normalizedTags = tags
+      .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+      .filter(Boolean);
 
     if (!documentId || !anchorId || typeof markdown !== "string") {
       return NextResponse.json(
@@ -86,7 +101,7 @@ export async function POST(req: NextRequest) {
       nextNotes.push({
         ...existing,
         markdown,
-        tags,
+        tags: normalizedTags,
         updatedAt: timestamp,
         deleted: false,
       });
@@ -95,7 +110,7 @@ export async function POST(req: NextRequest) {
         noteId: generateUUID(),
         anchorId,
         markdown,
-        tags,
+        tags: normalizedTags,
         createdAt: timestamp,
         updatedAt: timestamp,
         deleted: false,

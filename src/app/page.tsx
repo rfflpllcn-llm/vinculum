@@ -116,7 +116,9 @@ export default function Home() {
         const [response, anchorsResponse, notesResponse] = await Promise.all([
           authFetch(`/api/documents/${selectedDocument.driveFileId}`),
           authFetch(`/api/anchors?documentId=${selectedDocument.documentId}`),
-          authFetch(`/api/notes?documentId=${selectedDocument.documentId}`),
+          authFetch(`/api/notes?documentId=${selectedDocument.documentId}`, {
+            cache: "no-store",
+          }),
         ]);
 
         if (!response.ok) throw new Error("Failed to load file");
@@ -198,8 +200,16 @@ export default function Home() {
     }
   };
 
-  const handleNoteSave = async () => {
+  const handleNoteSave = async (payload?: { markdown?: string; tags?: string[] }) => {
     if (!selectedAnchor || !selectedDocument) return;
+    const tagsToSave = payload?.tags ?? noteTags;
+    const markdownToSave = payload?.markdown ?? noteContent;
+    if (payload?.tags) {
+      setNoteTags(payload.tags);
+    }
+    if (payload?.markdown !== undefined) {
+      setNoteContent(payload.markdown);
+    }
 
     try {
       const response = await authFetch("/api/notes", {
@@ -208,8 +218,8 @@ export default function Home() {
         body: JSON.stringify({
           documentId: selectedDocument.documentId,
           anchorId: selectedAnchor.anchorId,
-          markdown: noteContent,
-          tags: noteTags,
+          markdown: markdownToSave,
+          tags: tagsToSave,
         }),
       });
 
@@ -226,6 +236,7 @@ export default function Home() {
           }
           return next;
         });
+        setNoteTags(data.note.tags || []);
       }
 
       alert("Note saved successfully!");
