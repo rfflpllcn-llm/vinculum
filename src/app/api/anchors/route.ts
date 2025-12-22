@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       rect: body.rect,
       kind: body.kind,
       quote: body.quote,
-      quoteHash: body.quote ? computeQuoteHash(body.quote) : undefined,
+      quoteHash: body.quote ? await computeQuoteHash(body.quote) : undefined,
       label: body.label, // Optional user-provided label
       rowNumber: body.rowNumber, // Optional row number
       createdAt: getCurrentTimestamp(),

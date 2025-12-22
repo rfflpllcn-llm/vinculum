@@ -292,7 +292,7 @@ async function chunkToAnchor(
     rect,
     kind: "region",
     quote: chunk.text,
-    quoteHash: computeQuoteHash(chunk.text),
+    quoteHash: await computeQuoteHash(chunk.text),
     rowNumber,
     createdAt: getCurrentTimestamp(),
   };
