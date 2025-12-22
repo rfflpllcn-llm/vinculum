@@ -387,6 +387,8 @@ export default function AlignmentUploadPanel({
             if (result === null) {
               // No alignment files generated - this shouldn't happen after completion
               setError('Generation completed but no alignment files were created. Please try again.');
+            } else {
+              await authFetch(`/api/alignments/generate/${taskId}`, { method: 'DELETE' });
             }
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load generated files');

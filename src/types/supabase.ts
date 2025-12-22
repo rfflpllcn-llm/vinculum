@@ -99,6 +99,41 @@ export interface Database {
           updated_at?: string
         }
       }
+      generation_tasks: {
+        Row: {
+          task_id: string
+          user_id: string
+          status: 'pending' | 'running' | 'completed' | 'failed'
+          progress: number
+          message: string
+          result: Json | null
+          error: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          task_id?: string
+          user_id: string
+          status: 'pending' | 'running' | 'completed' | 'failed'
+          progress?: number
+          message?: string
+          result?: Json | null
+          error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          task_id?: string
+          user_id?: string
+          status?: 'pending' | 'running' | 'completed' | 'failed'
+          progress?: number
+          message?: string
+          result?: Json | null
+          error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }

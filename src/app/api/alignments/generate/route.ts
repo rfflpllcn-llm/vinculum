@@ -223,8 +223,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (!session.user?.id) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // Create task for tracking
-    const task = createTask();
+    const task = await createTask(session.user.id);
 
     // Start background generation
     generateInBackground(
@@ -271,7 +278,7 @@ async function generateInBackground(
   alignmentRuns: Array<{ source: string; targets: string[] }>
 ) {
   try {
-    updateTask(taskId, {
+    await updateTask(taskId, {
       status: "running",
       progress: 10,
       message: "Starting PDF processing...",
@@ -308,7 +315,7 @@ async function generateInBackground(
       args.push("--keep-all-alignments");
     }
 
-    updateTask(taskId, {
+    await updateTask(taskId, {
       progress: 20,
       message: "Running Python pipeline...",
     });
@@ -327,7 +334,7 @@ async function generateInBackground(
       console.log('Python stdout:', result.stdout.substring(0, 500));
     }
 
-    updateTask(taskId, {
+    await updateTask(taskId, {
       progress: 80,
       message: "Saving to cache...",
     });
@@ -382,7 +389,7 @@ async function generateInBackground(
       alignmentRuns
     );
 
-    updateTask(taskId, {
+    await updateTask(taskId, {
       status: "completed",
       progress: 100,
       message: "Generation completed successfully",
@@ -412,7 +419,7 @@ async function generateInBackground(
     }
   } catch (error) {
     console.error("Background generation error:", error);
-    updateTask(taskId, {
+    await updateTask(taskId, {
       status: "failed",
       progress: 0,
       message: "Generation failed",
