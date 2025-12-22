@@ -290,6 +290,7 @@ async function chunkToAnchor(
     documentId,
     page,
     rect,
+    kind: "region",
     quote: chunk.text,
     quoteHash: computeQuoteHash(chunk.text),
     rowNumber,

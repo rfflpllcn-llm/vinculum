@@ -20,9 +20,16 @@ export async function POST(req: NextRequest) {
     const body: CreateAnchor = await req.json();
 
     // Validate required fields
-    if (!body.documentId || !body.quote || !body.rect) {
+    if (!body.documentId || !body.rect || !body.kind) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    if (body.kind === "text" && !body.quote) {
+      return NextResponse.json(
+        { error: "quote is required for text anchors" },
         { status: 400 }
       );
     }
@@ -33,8 +40,9 @@ export async function POST(req: NextRequest) {
       documentId: body.documentId,
       page: body.page,
       rect: body.rect,
+      kind: body.kind,
       quote: body.quote,
-      quoteHash: computeQuoteHash(body.quote),
+      quoteHash: body.quote ? computeQuoteHash(body.quote) : undefined,
       label: body.label, // Optional user-provided label
       rowNumber: body.rowNumber, // Optional row number
       createdAt: getCurrentTimestamp(),
@@ -88,7 +96,12 @@ export async function GET(req: NextRequest) {
     const anchorsData = await driveService.loadMetadata(filename);
 
     // Return anchors or empty array if file doesn't exist
-    const anchors: Anchor[] = anchorsData || [];
+    const anchors: Anchor[] = Array.isArray(anchorsData)
+      ? anchorsData.map((anchor) => ({
+        ...anchor,
+        kind: anchor.kind || "text",
+      }))
+      : [];
 
     return NextResponse.json({ anchors });
   } catch (error) {

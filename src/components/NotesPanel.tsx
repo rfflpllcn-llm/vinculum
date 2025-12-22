@@ -159,7 +159,7 @@ export default function NotesPanel({
                   <div className="text-gray-700 truncate font-medium">
                     {anchor.label || anchor.quote || "Untitled anchor"}
                   </div>
-                  {anchor.label && (
+                  {anchor.label && anchor.quote && (
                     <div className="text-[10px] text-gray-500 italic truncate mt-0.5">
                       {anchor.quote}
                     </div>
@@ -190,16 +190,28 @@ export default function NotesPanel({
                   <div className="text-sm text-gray-900 font-semibold mb-2">
                     {selectedAnchor.label}
                   </div>
-                  <div className="text-xs text-gray-600 mb-1 font-medium">Quote:</div>
-                  <div className="text-xs text-gray-700 italic leading-relaxed">
-                    &ldquo;{selectedAnchor.quote}&rdquo;
-                  </div>
+                  {selectedAnchor.quote && (
+                    <>
+                      <div className="text-xs text-gray-600 mb-1 font-medium">Quote:</div>
+                      <div className="text-xs text-gray-700 italic leading-relaxed">
+                        &ldquo;{selectedAnchor.quote}&rdquo;
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
-                  <div className="text-xs text-gray-600 mb-1 font-medium">Anchor Quote:</div>
+                  <div className="text-xs text-gray-600 mb-1 font-medium">
+                    {selectedAnchor.quote ? "Anchor Quote:" : "Anchor:"}
+                  </div>
                   <div className="text-sm text-gray-800 italic leading-relaxed">
-                    &ldquo;{selectedAnchor.quote}&rdquo;
+                    {selectedAnchor.quote ? (
+                      <>
+                        &ldquo;{selectedAnchor.quote}&rdquo;
+                      </>
+                    ) : (
+                      "Region anchor"
+                    )}
                   </div>
                 </>
               )}

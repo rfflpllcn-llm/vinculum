@@ -72,10 +72,14 @@ export default function AIAuditModal({
 
   const contextEnabled = task === 'audit' && includeContext;
   const sourceQuote = sourceAnchor
-    ? (contextEnabled ? buildContextQuoteRange(sourceAnchor, sourceAnchors, contextBefore, contextAfter) : sourceAnchor.quote)
+    ? (contextEnabled
+      ? buildContextQuoteRange(sourceAnchor, sourceAnchors, contextBefore, contextAfter)
+      : (sourceAnchor.quote ?? ""))
     : '';
   const targetQuote = targetAnchor
-    ? (contextEnabled ? buildContextQuoteRange(targetAnchor, targetAnchors, contextBefore, contextAfter) : targetAnchor.quote)
+    ? (contextEnabled
+      ? buildContextQuoteRange(targetAnchor, targetAnchors, contextBefore, contextAfter)
+      : (targetAnchor.quote ?? ""))
     : '';
 
   // Update editable text when source/target quotes change
@@ -92,8 +96,8 @@ export default function AIAuditModal({
     if (!chunkMap) return map;
 
     Array.from(chunkMap.entries()).forEach(([chunkId, chunk]) => {
-      const sourceMatch = sourceAnchors.find(a => a.quote === chunk.text);
-      const targetMatch = targetAnchors.find(a => a.quote === chunk.text);
+      const sourceMatch = sourceAnchors.find(a => (a.quote ?? "") === chunk.text);
+      const targetMatch = targetAnchors.find(a => (a.quote ?? "") === chunk.text);
       if (sourceMatch) map.set(sourceMatch.anchorId, chunkId);
       if (targetMatch) map.set(targetMatch.anchorId, chunkId);
     });
@@ -608,8 +612,9 @@ export default function AIAuditModal({
 }
 
 function buildContextQuoteRange(anchor: Anchor, anchors: Anchor[], before: number, after: number): string {
+  const anchorQuote = anchor.quote ?? "";
   if (!anchor.rowNumber) {
-    return anchor.quote;
+    return anchorQuote;
   }
 
   const safeBefore = Math.max(0, Number.isFinite(before) ? before : 0);
@@ -622,12 +627,15 @@ function buildContextQuoteRange(anchor: Anchor, anchors: Anchor[], before: numbe
 
   const index = ordered.findIndex((item) => item.anchorId === anchor.anchorId);
   if (index === -1) {
-    return anchor.quote;
+    return anchorQuote;
   }
 
   const start = Math.max(0, index - safeBefore);
   const end = Math.min(ordered.length, index + safeAfter + 1);
-  return ordered.slice(start, end).map((item) => item.quote).join("\n");
+  return ordered
+    .slice(start, end)
+    .map((item) => item.quote ?? "")
+    .join("\n");
 }
 
 

@@ -109,8 +109,8 @@ export default function AlignmentVisualization({
     const map = new Map<string, number>();
     if (chunkMap) {
       Array.from(chunkMap.entries()).forEach(([chunkId, chunk]) => {
-        const sourceMatch = sourceAnchors.find(a => a.quote === chunk.text);
-        const targetMatch = targetAnchors.find(a => a.quote === chunk.text);
+        const sourceMatch = sourceAnchors.find(a => (a.quote ?? "") === chunk.text);
+        const targetMatch = targetAnchors.find(a => (a.quote ?? "") === chunk.text);
         if (sourceMatch) map.set(sourceMatch.anchorId, chunkId);
         if (targetMatch) map.set(targetMatch.anchorId, chunkId);
       });
@@ -179,8 +179,8 @@ export default function AlignmentVisualization({
     if (chunkMap) {
       Array.from(chunkMap.entries()).forEach(([chunkId, chunk]) => {
         // Find matching anchor by quote
-        const sourceMatch = sourceAnchors.find(a => a.quote === chunk.text);
-        const targetMatch = targetAnchors.find(a => a.quote === chunk.text);
+        const sourceMatch = sourceAnchors.find(a => (a.quote ?? "") === chunk.text);
+        const targetMatch = targetAnchors.find(a => (a.quote ?? "") === chunk.text);
         if (sourceMatch) anchorToChunkId.set(sourceMatch.anchorId, chunkId);
         if (targetMatch) anchorToChunkId.set(targetMatch.anchorId, chunkId);
       });
@@ -265,7 +265,7 @@ export default function AlignmentVisualization({
       sourceAnchors.forEach(anchor => {
         chunks.push({
           chunk_id: chunkId++,
-          text: anchor.quote,
+          text: anchor.quote ?? "",
           language: sourceLanguage,
           page: String(anchor.page).padStart(3, '0'),
         });
@@ -274,7 +274,7 @@ export default function AlignmentVisualization({
       targetAnchors.forEach(anchor => {
         chunks.push({
           chunk_id: chunkId++,
-          text: anchor.quote,
+          text: anchor.quote ?? "",
           language: targetLanguage,
           page: String(anchor.page).padStart(3, '0'),
         });
@@ -395,15 +395,15 @@ export default function AlignmentVisualization({
                 <div className="flex items-start space-x-2">
                   <span className="text-gray-600 font-medium min-w-[60px]">Source:</span>
                   <span className="text-gray-800 line-clamp-2">
-                    {sourceAnchor?.quote.substring(0, 100) || 'N/A'}
-                    {(sourceAnchor?.quote.length || 0) > 100 ? '...' : ''}
+                    {(sourceAnchor?.quote ?? "").substring(0, 100) || 'N/A'}
+                    {(sourceAnchor?.quote?.length || 0) > 100 ? '...' : ''}
                   </span>
                 </div>
                 <div className="flex items-start space-x-2">
                   <span className="text-gray-600 font-medium min-w-[60px]">Target:</span>
                   <span className="text-gray-800 line-clamp-2">
-                    {targetAnchor?.quote.substring(0, 100) || 'N/A'}
-                    {(targetAnchor?.quote.length || 0) > 100 ? '...' : ''}
+                    {(targetAnchor?.quote ?? "").substring(0, 100) || 'N/A'}
+                    {(targetAnchor?.quote?.length || 0) > 100 ? '...' : ''}
                   </span>
                 </div>
               </div>

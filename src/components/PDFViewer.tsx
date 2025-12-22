@@ -559,10 +559,10 @@ export default function PDFViewer({
         lastY = item.y;
       });
 
-      return result.trim() || `Selected area on page ${currentPage}`;
+      return result.trim();
     } catch (error) {
       console.error("Error extracting text:", error);
-      return `Selected area on page ${currentPage}`;
+      return "";
     }
   };
 
@@ -683,7 +683,7 @@ export default function PDFViewer({
               // Use line-based highlighting if rowNumber is available
               // Pass quote text for better matching across alignment types
               const rect = anchor.rowNumber != null
-                ? computeLineRect(anchor.rowNumber, anchor.quote) || anchor.rect
+                ? computeLineRect(anchor.rowNumber, anchor.quote ?? "") || anchor.rect
                 : anchor.rect;
 
               return (
@@ -715,7 +715,7 @@ export default function PDFViewer({
               // Use line-based highlighting if rowNumber is available
               // Pass quote text for better matching across alignment types
               const rect = anchor.rowNumber != null
-                ? computeLineRect(anchor.rowNumber, anchor.quote) || anchor.rect
+                ? computeLineRect(anchor.rowNumber, anchor.quote ?? "") || anchor.rect
                 : anchor.rect;
 
               return (

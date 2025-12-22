@@ -66,7 +66,7 @@ Manage Google Drive–backed documents.
 
 - PDF viewer uses `pdfjs-dist`  
 - Notes panel uses Monaco Editor  
-- Selecting text enables anchor creation  
+- Selecting a region enables anchor creation  
 - Notes auto-save on edit
 - Status legend: items marked "(planned)" are not yet implemented; everything else reflects current behavior
 
@@ -76,7 +76,7 @@ Manage Google Drive–backed documents.
 
 ### Interaction
 
-1. User selects text region in PDF  
+1. User selects a region in the PDF  
 2. Selection rectangle appears  
 3. "Create Anchor" action becomes available  
 4. Anchor is persisted immediately
@@ -91,6 +91,7 @@ Manage Google Drive–backed documents.
 
 - Anchor coordinates are normalized  
 - Anchors cannot be resized after creation
+- Region anchors may be created even when no text is detected
 
 ---
 

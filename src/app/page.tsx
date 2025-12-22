@@ -177,14 +177,13 @@ export default function Home() {
     if (!selectedDocument) return;
 
     try {
-      // Check if the quote is a placeholder (no text was extracted)
-      const isPlaceholder = quote.startsWith("Selected area on page");
+      const trimmedQuote = quote.trim();
+      const isRegion = trimmedQuote.length === 0;
       let label: string | undefined;
 
-      if (isPlaceholder) {
-        // Prompt user for a descriptive label
+      if (isRegion) {
         const userLabel = window.prompt(
-          "No text found in selection. Enter a description for this annotation:",
+          "No text found in selection. Enter a description for this region:",
           ""
         );
 
@@ -204,7 +203,8 @@ export default function Home() {
           documentId: selectedDocument.documentId,
           page,
           rect,
-          quote,
+          kind: isRegion ? "region" : "text",
+          quote: trimmedQuote || undefined,
           label,
         }),
       });

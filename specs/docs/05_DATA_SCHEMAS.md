@@ -77,7 +77,7 @@ Documents MUST have a stable UUID across sessions. The registry maps
 
 ## 3\. Anchor (Primary Spatial Reference)
 
-An anchor binds text to a precise PDF location.
+An anchor binds a PDF location to either text or a freeform region.
 
 {
 
@@ -99,9 +99,11 @@ An anchor binds text to a precise PDF location.
 
   },
 
-  "quote": "string",
+  "kind": "text | region",
 
-  "quoteHash": "sha256",
+  "quote": "string (optional)",
+
+  "quoteHash": "sha256 (optional)",
 
   "label": "string (optional)",
 
@@ -113,8 +115,13 @@ An anchor binds text to a precise PDF location.
 
 ### Constraints
 
-- `quoteHash` MUST be computed from `quote` (normalized whitespace)  
-- `rect` MUST fully enclose the quoted text  
+- For `kind: "text"`:
+  - `quote` is required  
+  - `quoteHash` MUST be computed from `quote` (normalized whitespace)  
+  - `rect` SHOULD approximately enclose the quoted text  
+- For `kind: "region"`:
+  - `rect` is authoritative and may cover whitespace  
+  - `quote` MAY be empty or omitted  
 - Anchors MUST survive re-rendering and zoom changes
 
 ---
