@@ -271,9 +271,9 @@ export default function NotesPanel({
 
   return (
     <div className="w-96 border-l border-gray-200 bg-white flex flex-col min-h-0">
-      <div className="p-4 border-b flex items-center justify-between">
+      <div className="p-4 border-b flex flex-wrap items-center gap-4">
         <h3 className="font-semibold text-gray-900">Notes</h3>
-        <div className="flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-gray-600">
             <input
               type="checkbox"
