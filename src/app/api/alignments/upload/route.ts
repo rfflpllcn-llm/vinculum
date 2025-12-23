@@ -106,8 +106,18 @@ export async function POST(request: NextRequest) {
     // Save anchors for each document
     for (const [docId, anchors] of anchorsByDoc.entries()) {
       const filename = `anchors_${docId}.json`;
-      await drive.saveMetadata(filename, anchors);
-      console.log(`Saved ${anchors.length} anchors to ${filename}`);
+      const existingAnchorsData = await drive.loadMetadata(filename);
+      const existingAnchors: Anchor[] = Array.isArray(existingAnchorsData)
+        ? existingAnchorsData
+        : [];
+      const manualAnchors = existingAnchors.filter(
+        (anchor) => anchor.rowNumber == null
+      );
+      const mergedAnchors = [...manualAnchors, ...anchors];
+      await drive.saveMetadata(filename, mergedAnchors);
+      console.log(
+        `Saved ${mergedAnchors.length} anchors to ${filename} (kept ${manualAnchors.length} manual anchors)`
+      );
     }
 
     // Save alignments
