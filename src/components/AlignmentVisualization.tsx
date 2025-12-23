@@ -118,35 +118,57 @@ export default function AlignmentVisualization({
     return map;
   }, [chunkMap, sourceAnchors, targetAnchors]);
 
-  // Filter and sort alignments by minimum source chunk ID
+  // Filter and sort alignments by row number (with chunk ID fallback)
   const sortedFilteredAlignments = useMemo(() => {
-    // Filter by selected types
     const filtered = alignments.filter(a =>
       !a.alignment_type || selectedTypes.has(a.alignment_type)
     );
 
-    // Sort by minimum source chunk ID
+    const getAnchorSortInfo = (anchorIds: string[], anchorMap: Map<string, Anchor>) => {
+      const anchors = anchorIds
+        .map(id => anchorMap.get(id))
+        .filter((anchor): anchor is Anchor => anchor !== undefined);
+      const pages = anchors.map(anchor => anchor.page);
+      const rows = anchors
+        .map(anchor => anchor.rowNumber)
+        .filter((row): row is number => row !== undefined);
+      return {
+        page: pages.length > 0 ? Math.min(...pages) : undefined,
+        row: rows.length > 0 ? Math.min(...rows) : undefined,
+      };
+    };
+
+    const getMinChunkId = (anchorIds: string[]) => {
+      const chunkIds = anchorIds
+        .map(id => anchorIdToChunkId.get(id))
+        .filter((value): value is number => value !== undefined);
+      return chunkIds.length > 0 ? Math.min(...chunkIds) : undefined;
+    };
+
     return filtered.sort((a, b) => {
-      // For multi-chunk alignments, use the minimum chunk ID
-      const aAnchorIds = a.sourceAnchorIds || [a.sourceAnchorId];
-      const bAnchorIds = b.sourceAnchorIds || [b.sourceAnchorId];
+      const aSourceIds = a.sourceAnchorIds || [a.sourceAnchorId];
+      const bSourceIds = b.sourceAnchorIds || [b.sourceAnchorId];
+      const aTargetIds = a.targetAnchorIds || [a.targetAnchorId];
+      const bTargetIds = b.targetAnchorIds || [b.targetAnchorId];
 
-      const aMinChunkId = Math.min(
-        ...aAnchorIds
-          .map(id => anchorIdToChunkId.get(id))
-          .filter((n): n is number => n !== undefined),
-        Infinity // Fallback if no chunk IDs found
-      );
-      const bMinChunkId = Math.min(
-        ...bAnchorIds
-          .map(id => anchorIdToChunkId.get(id))
-          .filter((n): n is number => n !== undefined),
-        Infinity // Fallback if no chunk IDs found
-      );
+      const aSourceInfo = getAnchorSortInfo(aSourceIds, anchorIdToSourceAnchor);
+      const bSourceInfo = getAnchorSortInfo(bSourceIds, anchorIdToSourceAnchor);
+      const aTargetInfo = getAnchorSortInfo(aTargetIds, anchorIdToTargetAnchor);
+      const bTargetInfo = getAnchorSortInfo(bTargetIds, anchorIdToTargetAnchor);
 
-      return aMinChunkId - bMinChunkId;
+      const aPage = aSourceInfo.page ?? aTargetInfo.page ?? Infinity;
+      const bPage = bSourceInfo.page ?? bTargetInfo.page ?? Infinity;
+      if (aPage !== bPage) return aPage - bPage;
+
+      const aRow = aSourceInfo.row ?? aTargetInfo.row ?? Infinity;
+      const bRow = bSourceInfo.row ?? bTargetInfo.row ?? Infinity;
+      if (aRow !== bRow) return aRow - bRow;
+
+      const aChunkId = getMinChunkId(aSourceIds) ?? getMinChunkId(aTargetIds) ?? Infinity;
+      const bChunkId = getMinChunkId(bSourceIds) ?? getMinChunkId(bTargetIds) ?? Infinity;
+      return aChunkId - bChunkId;
     });
-  }, [alignments, selectedTypes, anchorIdToChunkId]);
+  }, [alignments, selectedTypes, anchorIdToChunkId, anchorIdToSourceAnchor, anchorIdToTargetAnchor]);
 
   const handleTypeToggle = (type: string) => {
     const newSelected = new Set(selectedTypes);
@@ -303,7 +325,7 @@ export default function AlignmentVisualization({
   }
 
   return (
-    <div className="p-4 space-y-3">
+    <div className="flex h-full flex-col min-h-0 gap-3 p-4">
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold">
@@ -369,8 +391,8 @@ export default function AlignmentVisualization({
         )}
       </div>
 
-      {/* Alignments display - sorted by chunk ID */}
-      <div className="space-y-2 max-h-96 overflow-y-auto">
+      {/* Alignments display - sorted by row number */}
+      <div className="flex-1 min-h-0 space-y-2 overflow-y-auto">
         {sortedFilteredAlignments.map((alignment) => {
           // O(1) lookups instead of O(M) finds
           const sourceAnchor = anchorIdToSourceAnchor.get(alignment.sourceAnchorId);

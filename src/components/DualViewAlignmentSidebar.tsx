@@ -55,7 +55,7 @@ export default function DualViewAlignmentSidebar({
   targetLanguage,
 }: DualViewAlignmentSidebarProps) {
   return (
-    <div className="flex-1 min-w-[240px] bg-white border-l overflow-y-auto min-h-0">
+    <div className="flex-1 min-w-[240px] bg-white border-l min-h-0 flex flex-col">
       <div className="p-3 border-b space-y-2">
         <label className="flex items-center space-x-2">
           <input
@@ -105,18 +105,20 @@ export default function DualViewAlignmentSidebar({
           </div>
         </div>
       </div>
-      <AlignmentVisualization
-        alignments={filteredAlignments}
-        allAlignments={allAlignments}
-        sourceAnchors={sourceAnchors}
-        targetAnchors={targetAnchors}
-        onSelect={onSelect}
-        selectedAlignmentId={selectedAlignmentId}
-        onAudit={onAudit}
-        chunkMap={chunkMap}
-        sourceLanguage={sourceLanguage}
-        targetLanguage={targetLanguage}
-      />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <AlignmentVisualization
+          alignments={filteredAlignments}
+          allAlignments={allAlignments}
+          sourceAnchors={sourceAnchors}
+          targetAnchors={targetAnchors}
+          onSelect={onSelect}
+          selectedAlignmentId={selectedAlignmentId}
+          onAudit={onAudit}
+          chunkMap={chunkMap}
+          sourceLanguage={sourceLanguage}
+          targetLanguage={targetLanguage}
+        />
+      </div>
     </div>
   );
 }

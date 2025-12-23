@@ -156,6 +156,7 @@ Manage Google Drive–backed documents.
 
 - Alignment list appears in the sidebar  
 - Selecting an alignment highlights the corresponding anchors and enables AI audit
+- Alignment list is ordered by source row number and scrolls within the sidebar
 
 ---
 

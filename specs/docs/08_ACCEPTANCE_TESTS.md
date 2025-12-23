@@ -30,6 +30,11 @@
 - Dual view divider is draggable to resize the document workspace and right-side panels
 - Right-side panel width persists across reloads; double-clicking the divider resets the width
 
+## Alignments list
+
+- Alignments are sorted by source row number
+- Alignments list uses available sidebar height and scrolls within the panel
+
 ## Audit history
 
 - Audit history panel is resizable from the left edge
