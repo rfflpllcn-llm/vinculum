@@ -29,3 +29,8 @@ Reason: support border/margin annotations while keeping anchors backward compati
 
 Decision: Add `kind: "text" | "region"` to Anchor and make `quote`/`quoteHash` optional for region anchors.  
 Reason: allow page-location anchors on whitespace without violating text-grounding invariants
+
+## Audit session naming
+
+Decision: Add optional `task_name` to audit sessions to store user-defined titles.  
+Reason: display meaningful audit history names beyond task type

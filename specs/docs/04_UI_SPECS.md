@@ -213,6 +213,7 @@ Manage Google Drive–backed documents.
 - Panel opens as a right-side drawer from the top navigation
 - Left edge of the panel is draggable to resize the panel width
 - GPT Result content renders Markdown (headings, lists, quotes, code, paragraphs)
+- User can provide a custom audit name when saving results; history displays that name
 
 ---
 

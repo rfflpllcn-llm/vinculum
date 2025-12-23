@@ -7,6 +7,7 @@ import { z } from 'zod';
 // Validation schema
 const saveAuditSchema = z.object({
   alignmentId: z.string().uuid().nullable(),
+  taskName: z.string().max(200).nullable().optional(),
   promptText: z.string().min(1).max(50000),
   gptResponse: z.string().min(1).max(100000), // 100KB limit
   gptModel: z.string().default('gpt-4'),
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
         user_id: session.user.id, // Stable ID
         user_email: session.user.email, // Metadata only
         alignment_id: data.alignmentId,
+        task_name: data.taskName?.trim() || null,
         prompt_text: data.promptText,
         gpt_response: data.gptResponse,
         gpt_model: data.gptModel,
@@ -82,6 +84,7 @@ export async function POST(req: NextRequest) {
       userId: insertedData.user_id,
       userEmail: insertedData.user_email,
       alignmentId: insertedData.alignment_id,
+      taskName: insertedData.task_name ?? null,
       promptText: insertedData.prompt_text,
       gptResponse: insertedData.gpt_response,
       gptModel: insertedData.gpt_model || 'gpt-4',

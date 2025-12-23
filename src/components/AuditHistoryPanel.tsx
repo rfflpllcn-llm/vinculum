@@ -8,6 +8,19 @@ import { authFetch } from "@/lib/authFetch";
 const DEFAULT_AUDIT_PANEL_WIDTH = 600;
 const MIN_AUDIT_PANEL_WIDTH = 360;
 
+const formatTaskTypeLabel = (taskType: AuditSession["taskType"]) => {
+  switch (taskType) {
+    case "audit":
+      return "Audit Translation Quality";
+    case "explain":
+      return "Explain Relationship";
+    case "compare":
+      return "Compare Texts";
+    default:
+      return "AI Task";
+  }
+};
+
 type MarkdownBlock =
   | { type: "heading"; level: number; content: string }
   | { type: "list"; items: string[] }
@@ -434,11 +447,11 @@ export default function AuditHistoryPanel({
                   {/* Audit Summary */}
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
-                      <div className="font-medium text-gray-900 capitalize">
-                        {audit.taskType} Task
+                      <div className="font-medium text-gray-900">
+                        {audit.taskName?.trim() || formatTaskTypeLabel(audit.taskType)}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {new Date(audit.createdAt).toLocaleString()}
+                        {formatTaskTypeLabel(audit.taskType)} - {new Date(audit.createdAt).toLocaleString()}
                       </div>
                       {audit.sourceLanguage && audit.targetLanguage && (
                         <div className="text-xs text-gray-600 mt-1">

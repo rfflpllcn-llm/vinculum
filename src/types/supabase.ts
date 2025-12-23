@@ -49,6 +49,7 @@ export interface Database {
           user_id: string
           user_email: string | null
           alignment_id: string | null
+          task_name: string | null
           prompt_text: string
           gpt_response: string
           gpt_model: string | null
@@ -67,6 +68,7 @@ export interface Database {
           user_id: string
           user_email?: string | null
           alignment_id?: string | null
+          task_name?: string | null
           prompt_text: string
           gpt_response: string
           gpt_model?: string | null
@@ -85,6 +87,7 @@ export interface Database {
           user_id?: string
           user_email?: string | null
           alignment_id?: string | null
+          task_name?: string | null
           prompt_text?: string
           gpt_response?: string
           gpt_model?: string | null

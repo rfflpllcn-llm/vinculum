@@ -321,7 +321,55 @@ All AI calls MUST use this structure.
 
 ---
 
-## 10\. Deletion Semantics
+## 10\. Audit Session (History)
+
+Saved AI audit interactions for later review.
+
+{
+
+  "auditId": "uuid",
+
+  "userId": "string",
+
+  "userEmail": "string | null",
+
+  "alignmentId": "uuid | null",
+
+  "taskType": "audit | explain | compare",
+
+  "taskName": "string | null",
+
+  "promptText": "string",
+
+  "gptResponse": "string",
+
+  "gptModel": "string | null",
+
+  "sourceText": "string",
+
+  "targetText": "string",
+
+  "originalText": "string | null",
+
+  "sourceLanguage": "string | null",
+
+  "targetLanguage": "string | null",
+
+  "originalLanguage": "string | null",
+
+  "createdAt": "ISO-8601",
+
+  "updatedAt": "ISO-8601"
+
+}
+
+### Constraints
+
+- `taskName` is user-defined; if null, UI falls back to `taskType` label  
+
+---
+
+## 11\. Deletion Semantics
 
 - **Anchors**: never physically deleted  
 - **Notes**: soft delete (`deleted: true`)  
@@ -329,7 +377,7 @@ All AI calls MUST use this structure.
 
 ---
 
-## 11\. Schema Stability Rules
+## 12\. Schema Stability Rules
 
 - No field renaming without migration  
 - No implicit defaults  
@@ -337,7 +385,7 @@ All AI calls MUST use this structure.
 
 ---
 
-## 12\. Rationale (Non-normative)
+## 13\. Rationale (Non-normative)
 
 These schemas guarantee:
 

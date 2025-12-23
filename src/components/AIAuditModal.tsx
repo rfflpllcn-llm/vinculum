@@ -66,6 +66,7 @@ export default function AIAuditModal({
   // Audit saving state
   const [gptResult, setGptResult] = useState<string>('');
   const [gptModel, setGptModel] = useState<string>('gpt-4');
+  const [taskName, setTaskName] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -342,8 +343,15 @@ export default function AIAuditModal({
   };
 
   const handleSaveResult = async () => {
+    const normalizedTaskName = taskName.trim();
+
     if (!prompt || !gptResult) {
       setSaveError('Both prompt and result are required');
+      return;
+    }
+
+    if (!normalizedTaskName) {
+      setSaveError('Audit name is required');
       return;
     }
 
@@ -357,6 +365,7 @@ export default function AIAuditModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           alignmentId: alignment?.alignmentId || null,
+          taskName: normalizedTaskName,
           promptText: prompt,
           gptResponse: gptResult,
           gptModel,
@@ -555,6 +564,18 @@ export default function AIAuditModal({
                 <option value="o1-mini">o1-mini</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Audit name
+              </label>
+              <input
+                type="text"
+                value={taskName}
+                onChange={(e) => setTaskName(e.target.value)}
+                placeholder="e.g. Kafka p2 oscillation"
+                className="w-full border rounded px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
             <textarea
               value={gptResult}
               onChange={(e) => setGptResult(e.target.value)}
@@ -565,7 +586,7 @@ export default function AIAuditModal({
             {/* Save Button */}
             <button
               onClick={handleSaveResult}
-              disabled={!gptResult || saving}
+              disabled={!gptResult || !taskName.trim() || saving}
               className="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               {saving ? 'Saving...' : 'Save Result'}

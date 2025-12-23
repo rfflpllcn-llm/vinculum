@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
       userId: row.user_id,
       userEmail: row.user_email,
       alignmentId: row.alignment_id,
+      taskName: row.task_name ?? null,
       promptText: row.prompt_text,
       gptResponse: row.gpt_response,
       gptModel: row.gpt_model || 'gpt-4',

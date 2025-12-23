@@ -39,3 +39,4 @@
 
 - Audit history panel is resizable from the left edge
 - GPT Result renders Markdown formatting
+- Audit history displays the user-provided audit name

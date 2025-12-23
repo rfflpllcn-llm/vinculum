@@ -246,6 +246,7 @@ export interface AuditSession {
   userId: string; // Stable NextAuth user ID
   userEmail: string | null; // Metadata only
   alignmentId: UUID | null;
+  taskName?: string | null;
   promptText: string;
   gptResponse: string;
   gptModel: string;
@@ -265,6 +266,7 @@ export interface AuditSession {
  */
 export interface SaveAuditSessionRequest {
   alignmentId: string | null;
+  taskName?: string | null;
   promptText: string;
   gptResponse: string;
   gptModel: string;
