@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Modal from './Modal';
 import { Anchor, Alignment, AITask } from '@/types/schemas';
 import { authFetch } from '@/lib/authFetch';
-import { buildTripleAlignmentAuditPrompt } from '@/lib/aiPrompts';
+import { buildTripleTranslationAuditPrompt } from '@/lib/aiPrompts';
 
 /**
  * AI Audit Modal Component
@@ -293,7 +293,7 @@ export default function AIAuditModal({
           ? buildOriginalContextText(orderedOriginalChunks, originalChunkIds, 2)
           : originalChunks.map((chunk) => chunk.text).join('\n');
 
-        const promptText = buildTripleAlignmentAuditPrompt({
+        const promptText = buildTripleTranslationAuditPrompt({
           orgLanguage: normalizedOriginalLang,
           srcLanguage: normalizedSourceLang,
           tgtLanguage: normalizedTargetLang,
