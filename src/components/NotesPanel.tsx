@@ -270,7 +270,7 @@ export default function NotesPanel({
   }, [anchors, notesByAnchorId, queryTags]);
 
   return (
-    <div className="w-96 border-l border-gray-200 bg-white flex flex-col min-h-0">
+    <div className="h-full w-full bg-white flex flex-col min-h-0">
       <div className="p-4 border-b flex flex-wrap items-center gap-4">
         <h3 className="font-semibold text-gray-900">Notes</h3>
         <div className="ml-auto flex items-center gap-3">
@@ -323,7 +323,7 @@ export default function NotesPanel({
                 placeholder="Filter by tag..."
               />
             </div>
-            <div className="max-h-120 overflow-y-auto divide-y bg-white">
+            <div className="max-h-[30vh] overflow-y-auto divide-y bg-white">
               {filteredAnchors.map((anchor) => (
                 <button
                   key={anchor.anchorId}
