@@ -8,35 +8,38 @@ Vinculum is designed for literary scholars, translators, and digital humanities 
 
 - Google Drive-backed document library
 - PDF rendering with persistent anchors
-- Markdown notes linked to document coordinates
-- Dual-document alignment with sync scroll (Phase 2)
-- AI audit and explanation tools (Phase 2)
-- Long-term memory via vector search (Phase 3)
+- Markdown notes linked to document coordinates (auto-save + preview)
+- Dual-document alignment with sync scroll
+- AI audit and explanation tools
+- Future: long-term memory via vector search (Phase 3)
 
-## Current Status: Phase 1 Complete
+## Current Status: Phase 2 (Alignment + AI) Complete
 
-Phase 1 features implemented:
-- ✅ Google Drive OAuth authentication
-- ✅ PDF library browser
-- ✅ Single PDF viewer with pdfjs-dist
-- ✅ Anchor creation (rectangular selection)
-- ✅ Markdown note editor with Monaco
-- ✅ Anchor persistence to Google Drive
+Phase 2 features implemented:
+- Drive OAuth authentication and library browser
+- Single and dual PDF viewer with sync scroll
+- Anchor creation (rectangular selection) with persistent notes
+- Alignment upload (JSONL) or PDF-driven generation pipeline
+- AI audit modal with editable source/target text and copyable prompt
+- Supabase-backed document registry, audit history, and generation task state
 
 ## Tech Stack
 
 - **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS
 - **PDF Rendering**: pdfjs-dist
 - **Editor**: Monaco Editor (Markdown)
-- **Storage**: Google Drive (OAuth)
+- **Storage**: Google Drive (OAuth) + Supabase (PostgreSQL)
 - **Authentication**: NextAuth.js
+- **Alignment Pipeline**: Python 3.11 (pdfalign + bertalign)
 
 ## Prerequisites
 
 - Node.js 18+ and npm
 - Google Cloud Platform account with Drive API enabled
 - Google OAuth 2.0 credentials
-- Supabase project (PostgreSQL) for document registry and audit history
+- Supabase project (PostgreSQL) for document registry, audit history, and task state
+- Python 3.11+ (required only for alignment generation)
+- OpenAI API key (optional; required for AI audit)
 
 ## Setup Instructions
 
@@ -86,6 +89,13 @@ NEXTAUTH_SECRET=your_random_secret_here
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# OpenAI (optional; required for AI audit)
+OPENAI_API_KEY=your-openai-key
+
+# Cron + generation task retention (optional)
+CRON_SECRET=your_cron_secret
+GENERATION_TASK_RETENTION_HOURS=1
 ```
 
 To generate a secure `NEXTAUTH_SECRET`:
@@ -93,7 +103,23 @@ To generate a secure `NEXTAUTH_SECRET`:
 openssl rand -base64 32
 ```
 
-### 4. Run Development Server
+### 4. Supabase Database Setup
+
+Create tables to match `src/types/supabase.ts`.
+
+Starting point:
+- `scripts/supabase/documents.sql` for the `documents` table
+- `docs/USE-CASES.md` for example `audit_sessions` SQL
+
+### 5. (Optional) Install Python Dependencies
+
+Required only for alignment generation:
+
+```bash
+pip install -r python/requirements.txt
+```
+
+### 6. Run Development Server
 
 ```bash
 npm run dev
@@ -101,16 +127,12 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 5. Upload Test Documents
+### 7. Upload Test Documents
 
 1. Sign in with your Google account
-2. Upload PDF or Markdown files to your Google Drive
+2. Upload PDF files to your Google Drive
 3. Place them in `/Vinculum_Data/Books/` folder (created automatically on first login)
-
-### 6. Supabase Database Setup
-
-Create the `documents` table in Supabase (used to keep `documentId` stable).
-SQL is documented in `audit-history-storage-implementation-plan.md`.
+4. Markdown files can be stored but render a placeholder (PDF rendering only)
 
 ## Project Structure
 
@@ -136,6 +158,9 @@ vinculum/
 │   │   └── utils.ts           # Helper functions
 │   └── types/                 # TypeScript types
 │       └── schemas.ts         # Data contracts
+├── docs/                      # Usage + integration guides
+├── python/                    # PDF alignment pipeline
+├── scripts/                   # Local setup helpers
 ├── specs/                     # Project specifications
 │   ├── AGENTS.md             # Development rules
 │   └── docs/                 # Detailed specifications
@@ -156,6 +181,7 @@ Storage structure in Google Drive:
 /Vinculum_Data/
   /Books/          # PDF and Markdown files
   /Metadata/       # Anchors, notes, alignments (JSON)
+    /Cache/        # Generated JSONL cache
   /Backups/        # Future use
 ```
 
@@ -169,7 +195,12 @@ Storage structure in Google Drive:
    - Release to create an anchor
 5. **Add Notes**:
    - Write Markdown notes in the right panel
-   - Click "Save" to persist
+   - Notes auto-save after idle and on anchor switch
+   - Use the Preview toggle to render Markdown
+6. **Use Dual View**:
+   - Toggle to Dual mode
+   - Upload JSONL files or generate from PDFs
+   - Review alignments and run AI audit
 
 ## Development Commands
 
@@ -186,7 +217,7 @@ npm start
 # Lint code
 npm run lint
 
-# Run tests (when implemented)
+# Run tests
 npm test
 ```
 
@@ -195,19 +226,13 @@ npm test
 Vinculum follows a client-centric architecture:
 
 - **Frontend (Browser)**: Renders PDFs, manages UI, handles user interactions
-- **Application Server (Thin)**: OAuth, Drive API proxy, validation
-- **Storage**: Google Drive (documents, metadata)
-- **Future**: Vector DB (Phase 3), AI API (Phase 2-3)
+- **Application Server (Thin)**: OAuth, Drive API proxy, alignment pipeline orchestration
+- **Storage**: Google Drive (documents, metadata, JSONL cache) + Supabase (registry, audits, tasks)
+- **Future**: Vector DB (Phase 3)
 
 See `specs/docs/07_ARCHITECTURE.md` for details.
 
 ## Roadmap
-
-### Phase 2: Alignment & AI (Planned)
-- Dual PDF view
-- Sync scroll (≤20px drift)
-- Alignment JSON parser
-- AI audit modal (alignment-aware)
 
 ### Phase 3: Memory (Planned)
 - Embedding pipeline
@@ -217,7 +242,7 @@ See `specs/docs/07_ARCHITECTURE.md` for details.
 
 ## Documentation
 
-All specifications are in the `specs/` directory:
+All specifications are in the `specs/` directory, and usage guides are in `docs/`:
 
 - `specs/AGENTS.md` - Development guidelines for AI agents
 - `specs/docs/00_INDEX.md` - Documentation index
@@ -226,6 +251,10 @@ All specifications are in the `specs/` directory:
 - `specs/docs/04_UI_SPECS.md` - UI behavior specifications
 - `specs/docs/07_ARCHITECTURE.md` - System architecture
 - `specs/docs/08_ACCEPTANCE_TESTS.md` - Acceptance criteria
+- `docs/DUAL_VIEW_USAGE.md` - Dual view setup and workflow
+- `docs/INTEGRATION.md` - Alignment generation pipeline
+- `docs/HIGHLIGHTING.md` - Anchor highlighting behavior
+- `docs/TESTING.md` - Test and verification steps
 
 ## Contributing
 

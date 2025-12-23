@@ -39,6 +39,8 @@ Represents a file stored in Google Drive.
 
   "pageCount": 0,
 
+  "isOriginal": "boolean (optional)",
+
   "createdAt": "ISO-8601",
 
   "updatedAt": "ISO-8601"
@@ -61,6 +63,8 @@ Documents MUST have a stable UUID across sessions. The registry maps
   "mimeType": "application/pdf | text/markdown",
 
   "pageCount": 0,
+
+  "isOriginal": "boolean (optional)",
 
   "createdAt": "ISO-8601",
 
@@ -167,7 +171,13 @@ Defines a directed semantic link between two anchors.
 
   "targetAnchorId": "uuid",
 
+  "sourceAnchorIds": ["uuid"],
+
+  "targetAnchorIds": ["uuid"],
+
   "type": "translation | paraphrase | commentary | allusion",
+
+  "alignment_type": "string",
 
   "confidence": 0.0,
 
@@ -180,6 +190,8 @@ Defines a directed semantic link between two anchors.
 - Source and target anchors MUST belong to different documents  
 - Alignments are immutable once created  
 - Confidence ∈ \[0.0, 1.0\]
+- `sourceAnchorIds`/`targetAnchorIds` MAY list multi-chunk alignments; the singular IDs remain the primary anchor for backward compatibility  
+- `alignment_type` stores the original JSONL alignment type (e.g., "1-1", "2-1")
 
 ---
 

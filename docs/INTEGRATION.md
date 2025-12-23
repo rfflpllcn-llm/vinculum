@@ -43,7 +43,7 @@ Return to frontend
 3. **Task Manager** (`src/lib/taskManager.ts`)
    - Background job tracking
    - Progress polling
-   - In-memory task storage (can be migrated to Redis)
+   - Persistent task state in Supabase (`generation_tasks`)
 
 4. **API Routes**
    - `POST /api/alignments/generate` - Start JSONL generation
@@ -61,17 +61,18 @@ Return to frontend
 
 1. Navigate to the Dual View Setup panel
 2. Click the "Generate from PDFs" tab
-3. Select source and target documents
-4. Upload PDF files for each language:
+3. Choose PDF source: **Drive** or **Upload**
+4. Select source and target documents (Drive mode)
+5. Upload PDF files for each language (Upload mode):
    - Click "Upload PDF" for each language
    - Supported: EN, IT, HU, FR, DE, ES, etc.
    - Click "+ Add Another Language" for more languages
-5. (Optional) Configure custom fields:
+6. (Optional) Configure custom fields:
    - **Text Field Name**: Field name for the text content (default: `text`)
    - **Metadata Fields**: Comma-separated list (default: `chunk_id,language,page`)
-6. Click "Generate Alignment Files"
-7. Wait for processing (2-5 minutes depending on PDF size)
-8. Files are automatically cached for future use
+7. Click "Generate Alignment Files"
+8. Wait for processing (2-5 minutes depending on PDF size)
+9. Files are automatically cached for future use
 
 ### Custom Fields (Advanced)
 
@@ -101,7 +102,7 @@ This produces JSONL like:
 **Cache Hit**: If PDFs with the same hash have been processed before:
 - Instant return of cached files
 - No regeneration needed
-- Saved in Google Drive `/Vinculum_Data/Cache/`
+- Saved in Google Drive `/Vinculum_Data/Metadata/Cache/`
 
 **Cache Miss**: If PDFs are new or modified:
 - Full processing pipeline runs
@@ -112,7 +113,7 @@ This produces JSONL like:
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 18+
 - Python 3.11+
 - Google Drive API credentials
 
@@ -305,8 +306,8 @@ Processing time depends on:
 ### Scaling Strategies
 
 1. **Cache optimization**: Most requests will hit cache after first generation
-2. **Task queue**: For production, migrate from in-memory to Redis-based queue
-3. **Worker separation**: Move Python processing to Azure Functions for better scaling
+2. **Task queue**: For production, consider a dedicated queue/worker system alongside Supabase task state
+3. **Worker separation**: Move Python processing to Azure Functions or a worker service for better scaling
 4. **GPU acceleration**: Use GPU-enabled containers for BERT embedding (10x faster)
 
 ## Troubleshooting

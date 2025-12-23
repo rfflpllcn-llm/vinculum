@@ -90,6 +90,7 @@ Subfolders:
 
 - `/Books/` (PDFs, Markdown)  
 - `/Metadata/` (anchors, notes, alignments)  
+- `/Metadata/Cache/` (JSONL chunks + alignments cache)  
 - `/Backups/`
 
 ### Format
@@ -100,6 +101,7 @@ Subfolders:
 ### Supplemental storage
 
 - Supabase (PostgreSQL) for document registry and audit history  
+- Supabase generation task state (`generation_tasks`) for long-running JSONL jobs  
 - Server-only access via service role key  
 
 ---
@@ -115,8 +117,10 @@ Subfolders:
 
 ### Rules
 
-- Write-through on creation  
-- No batch mutation  
+- Write-through on creation for UI-created anchors and notes  
+- Document registry updates occur on library sync (Drive scan)  
+- Alignment imports/generation persist on job completion (bulk write)  
+- No batch mutation (deprecated; alignment imports and JSONL generation require bulk writes to avoid Google Drive write bottlenecks)  
 - Soft deletion only
 
 ---

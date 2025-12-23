@@ -60,7 +60,7 @@ Manage Google Drive–backed documents.
 
 ### Layout
 
-\+----------------------------+------------------+ | PDF Viewer | Notes Panel | | | (Markdown) | | | | \+----------------------------+------------------+
+\+----------------------------+------------------+ | PDF Viewer | Notes Panel | | | | | | | \+----------------------------+------------------+
 
 ### Behavior
 
@@ -114,11 +114,11 @@ Manage Google Drive–backed documents.
 
 ### Layout
 
-\+----------------------+----------------------+ | Source Document | Target Document | | PDF / Markdown | PDF / Markdown | \+----------------------+----------------------+
+\+----------------------+----------------------+ | Source Document | Target Document | | PDF | PDF | \+----------------------+----------------------+
 
 ### Behavior
 
-- Activated via "Align" action  
+- Activated via the View mode toggle (Single / Dual) in the top navigation  
 - Both documents load simultaneously  
 - Anchors are visually paired when aligned
 
@@ -143,15 +143,15 @@ Manage Google Drive–backed documents.
 
 ### Interaction
 
-1. User selects source anchor  
-2. User selects target anchor  
-3. "Create Alignment" action  
-4. Alignment is persisted
+1. User switches to Dual view  
+2. User selects source and target documents  
+3. User uploads JSONL files (chunks + alignments) or generates them from PDFs  
+4. Server parses JSONL, creates anchors + alignments, and persists metadata
 
 ### Visual Feedback
 
-- Aligned anchors share color coding  
-- Hovering one highlights the other
+- Alignment list appears in the sidebar  
+- Selecting an alignment highlights the corresponding anchors and enables AI audit
 
 ---
 
@@ -171,7 +171,7 @@ Manage Google Drive–backed documents.
 ### Behavior
 
 - AI input is auto-generated  
-- User cannot edit raw AI prompt  
+- User can edit source/target text and copy the generated prompt  
 - Output references anchors explicitly
 
 ---

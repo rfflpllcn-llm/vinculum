@@ -2,27 +2,29 @@
 
 ## Overview
 
-Dual View Mode allows you to view two PDF documents side-by-side with synchronized scrolling based on text alignments. This is useful for comparing translations, parallel texts, or aligned documents.
+Dual View Mode allows you to view two PDF documents side-by-side with synchronized scrolling based on alignment metadata. This is useful for comparing translations, parallel texts, or aligned documents.
 
 ## Getting Started
 
 ### 1. Switch to Dual View Mode
 
-- Look for the **View Mode Toggle** in the top-right corner of the application header
+- Look for the **View Mode Toggle** in the top navigation bar
 - Click **"Dual"** to switch from single view to dual view mode
 
-### 2. Upload Alignment Files
+### 2. Provide Alignment Data (Upload or Generate)
 
 When you enter Dual View mode for the first time, you'll see the **Alignment Upload Panel** with the following steps:
 
-#### Step 1: Select Documents
+#### Option A: Upload JSONL Files
+
+##### Step 1: Select Documents
 
 - **Source Document**: Choose the source/original document from the dropdown
 - **Target Document**: Choose the target/translated document from the dropdown
 
 Your documents must be already uploaded to Google Drive in the `/Vinculum_Data/Books/` folder.
 
-#### Step 2: Upload JSONL Files
+##### Step 2: Upload JSONL Files
 
 You need two JSONL files:
 
@@ -41,15 +43,31 @@ You need two JSONL files:
    {"alignment_id": 1, "pair_id": 1, "src_text": "...", "tgt_text": "...", "src_chunks": [1], "tgt_chunks": [2], "src_lang": "it", "tgt_lang": "en", "alignment_type": "1-1", "validation": {...}}
    ```
 
-#### Step 3: Upload and Process
+##### Step 3: Upload and Process
 
 - Click **"Upload and Load Alignments"** button
 - The system will:
   1. Parse your JSONL files
-  2. Search for text locations in the PDFs
-  3. Create anchors for each chunk
-  4. Save alignments to Google Drive
-  5. Load the documents side-by-side
+  2. Create anchors for each chunk (row-number based)
+  3. Save alignments to Google Drive
+  4. Load the documents side-by-side
+
+#### Option B: Generate JSONL from PDFs
+
+##### Step 1: Choose PDF Source
+
+- **Select from Google Drive** or **Upload from Computer**
+
+##### Step 2: Select or Upload PDFs
+
+- Choose PDFs for each language
+- Set the **original** language and the two **visible** languages for Dual View
+
+##### Step 3: Generate
+
+- Click **"Generate Alignment Files"**
+- The system runs the Python alignment pipeline and caches results in Drive
+- You can download the generated JSONL files from the panel
 
 ## Using Dual View
 
@@ -59,20 +77,22 @@ Once loaded, you'll see:
 
 - **Left Panel**: Source document
 - **Right Panel**: Target document
-- **Right Sidebar**: Alignment list and controls
+- **Right Sidebar**: Alignment list, search panel, and controls
 
 ### Synchronized Scrolling
 
 - **Sync Scroll Checkbox**: Toggle synchronized scrolling on/off
+- **Use Cache Checkbox**: Prefer cached PDFs when available
+- **Refresh buttons**: Force a re-download from Drive
 - When enabled, scrolling in the source document automatically scrolls the target document to the corresponding aligned position
 - Drift constraint: ≤20px for accurate alignment
 
 ### Alignment Visualization
 
-- Aligned text segments are highlighted in yellow on both documents
 - Click an alignment in the sidebar to:
   - See the source and target text
   - View alignment metadata (type, confidence)
+  - Highlight the corresponding anchors
   - Open the AI Audit modal
 
 ### AI Audit
@@ -81,13 +101,13 @@ Once loaded, you'll see:
 - An AI Audit modal will open showing:
   - Source and target quotes
   - Task type selector (Audit, Explain, Compare)
-  - "Run AI Audit" button
-- Click to analyze the alignment using GPT-4
-- Results include:
-  - Translation quality assessment
-  - Semantic accuracy
-  - Discrepancies or issues
-  - Suggested improvements
+  - Source/target text fields are editable
+- For **Audit**:
+  - Click **Prepare Prompt** and copy the prompt
+  - Paste the model output and save the result
+- For **Explain** or **Compare**:
+  - Click **Run AI Audit** (requires `OPENAI_API_KEY`)
+  - Results are shown in the modal and can be saved
 
 ## JSONL Format Requirements
 
@@ -123,16 +143,15 @@ Required fields:
 1. **Document Selection**: Make sure both documents are PDFs uploaded to Google Drive
 2. **Language Codes**: Use consistent language codes in your JSONL files
 3. **Page Numbers**: Use zero-padded strings for page numbers (e.g., "001", not "1")
-4. **Text Search**: The system uses fuzzy text matching, so minor differences in spacing/formatting are handled
+4. **Row Numbers**: Chunk order drives rowNumber highlighting, so chunk order should match page order
 5. **Sync Scroll**: If sync scroll isn't working well, verify that your alignment chunk IDs are correct
 
 ## Troubleshooting
 
 ### "Text not found" warnings
 
-- The system couldn't locate some text in the PDF
-- Check that the text in your chunks file exactly matches the PDF content
-- Minor differences in spacing, line breaks, or punctuation can cause mismatches
+- These warnings can appear when row-number based highlights cannot map to visible text lines
+- Verify page numbers and chunk ordering for the affected language
 
 ### Sync scroll drift
 
@@ -150,8 +169,8 @@ Required fields:
 
 - Google Drive connection configured
 - PDFs uploaded to `/Vinculum_Data/Books/`
-- Valid JSONL alignment files
-- OpenAI API key (for AI Audit feature)
+- Valid JSONL alignment files (upload mode) or Python generation pipeline (generate mode)
+- OpenAI API key (for Explain/Compare in AI Audit)
 
 ## Next Steps
 
