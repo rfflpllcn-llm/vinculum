@@ -96,7 +96,7 @@ export default function NotesPanel({
       });
     }
     // Sort by page number
-    return result.sort((a, b) => a.page - b.page);
+    return [...result].sort((a, b) => a.page - b.page);
   }, [anchors, notesByAnchorId, queryTags]);
 
   return (
