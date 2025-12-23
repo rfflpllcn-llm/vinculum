@@ -457,8 +457,9 @@ export default function PDFViewer({
     rect: DOMRect
   ): Promise<string> => {
     try {
-      const textContent = await page.getTextContent();
-      const selectedTexts: Array<{ text: string; y: number; x: number }> = [];
+      const textContent = await page.getTextContent({ disableCombineTextItems: true });
+      const selectedTexts: Array<{ text: string; y: number; x: number; right: number }> = [];
+      const selectionWidth = rect.width;
 
       // Iterate through text items and check if they're within the selection
       textContent.items.forEach((item: any) => {
@@ -519,16 +520,44 @@ export default function PDFViewer({
           const overlapRatio = itemArea > 0 ? overlapArea / itemArea : 0;
 
           // Also check vertical overlap - if selection covers most of text height, include it
-          const verticalOverlap = overlapHeight / itemHeight;
+          const verticalOverlap = itemHeight > 0 ? overlapHeight / itemHeight : 0;
 
           // Include text if:
           // 1. At least 50% of text area is in selection, OR
           // 2. At least 70% of text height overlaps (good for narrow horizontal selections)
           if (overlapRatio >= 0.5 || verticalOverlap >= 0.7) {
+            const rawText = item.str;
+            if (!rawText || rawText.trim().length === 0) return;
+
+            let text = rawText;
+            let textX = Math.min(x, x2);
+            let textRight = Math.max(x, x2);
+
+            if (
+              itemWidth > 0 &&
+              overlapWidth > 0 &&
+              selectionWidth > 0 &&
+              itemWidth > selectionWidth * 1.5 &&
+              rawText.length > 1
+            ) {
+              const leftRatio = (overlapLeft - itemRect.left) / itemWidth;
+              const rightRatio = (overlapRight - itemRect.left) / itemWidth;
+              let startIndex = Math.floor(leftRatio * rawText.length);
+              let endIndex = Math.ceil(rightRatio * rawText.length);
+              startIndex = Math.max(0, Math.min(rawText.length - 1, startIndex));
+              endIndex = Math.max(startIndex + 1, Math.min(rawText.length, endIndex));
+              text = rawText.slice(startIndex, endIndex);
+              textX = overlapLeft;
+              textRight = overlapRight;
+            }
+
+            if (text.trim().length === 0) return;
+
             selectedTexts.push({
-              text: item.str,
+              text,
               y: Math.min(y, y2),
-              x: Math.min(x, x2),
+              x: textX,
+              right: textRight,
             });
           }
         }
@@ -544,16 +573,23 @@ export default function PDFViewer({
       // Combine text with proper spacing
       let result = "";
       let lastY = -1;
+      let lastRight = -1;
+      const lineThreshold = 5;
+      const spaceThreshold = 2;
+
       selectedTexts.forEach((item, index) => {
-        if (lastY >= 0 && Math.abs(item.y - lastY) > 5) {
-          // New line
+        if (lastY >= 0 && Math.abs(item.y - lastY) > lineThreshold) {
           result += "\n";
         } else if (index > 0) {
-          // Same line, add space
-          result += " ";
+          const gap = item.x - lastRight;
+          if (gap > spaceThreshold && !result.endsWith(" ")) {
+            result += " ";
+          }
         }
+
         result += item.text;
         lastY = item.y;
+        lastRight = item.right;
       });
 
       return result.trim();
