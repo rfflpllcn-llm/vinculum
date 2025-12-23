@@ -73,6 +73,8 @@ export function useSyncScroll({
     (position: ScrollPosition) => {
       if (!enabled || manualScrollDisabled) return;
 
+      const viewportHeight = position.viewportHeight;
+
       // Find nearest alignment anchor to current scroll position
       const nearestAlignment = findNearestAlignment(
         position,
@@ -96,15 +98,15 @@ export function useSyncScroll({
         normalizedY: targetY,
       };
 
-      // Apply drift constraint (convert to pixel space for comparison)
-      // Note: In practice, we need viewport height to compute actual drift in pixels
-      // For now, we'll use normalized space and trust the constraint
+      // Apply drift constraint (convert normalized drift to pixels using viewport height when available)
       const calculatedDrift = Math.abs(position.normalizedY - targetPosition.normalizedY);
-      setDrift(calculatedDrift);
+      const driftPx = viewportHeight
+        ? calculatedDrift * viewportHeight
+        : calculatedDrift * 1000; // fallback to previous approximation
+      setDrift(driftPx);
 
       // Apply constraint
-      if (calculatedDrift <= MAX_DRIFT_PX / 1000) {
-        // Convert px to approximate normalized value
+      if (driftPx <= MAX_DRIFT_PX) {
         setTargetScrollPosition(targetPosition);
       }
     },

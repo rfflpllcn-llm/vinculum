@@ -171,6 +171,7 @@ export interface ScrollPosition {
   page: number;
   offsetY: number; // pixels from top of page
   normalizedY: number; // 0-1 within page
+  viewportHeight?: number; // visible viewport height in pixels (optional)
 }
 
 // ============================================================================

@@ -188,6 +188,7 @@ export default function PDFViewer({
         page: currentPage,
         offsetY: scrollTop,
         normalizedY,
+        viewportHeight: clientHeight,
       };
 
       onScroll(position);
