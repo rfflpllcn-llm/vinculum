@@ -188,19 +188,22 @@ export default function AIAuditModal({
   const buildOriginalContextText = (
     orderedChunks: Array<{ chunk_id: number; text: string }>,
     selectedChunkIds: Set<number>,
-    radius: number
+    before: number,
+    after: number
   ) => {
     if (orderedChunks.length === 0 || selectedChunkIds.size === 0) {
       return '';
     }
 
+    const safeBefore = Math.max(0, Number.isFinite(before) ? before : 0);
+    const safeAfter = Math.max(0, Number.isFinite(after) ? after : 0);
     const included = new Set<number>();
     orderedChunks.forEach((chunk, index) => {
       if (!selectedChunkIds.has(chunk.chunk_id)) {
         return;
       }
-      const start = Math.max(0, index - radius);
-      const end = Math.min(orderedChunks.length, index + radius + 1);
+      const start = Math.max(0, index - safeBefore);
+      const end = Math.min(orderedChunks.length, index + safeAfter + 1);
       for (let i = start; i < end; i += 1) {
         included.add(orderedChunks[i].chunk_id);
       }
@@ -290,7 +293,12 @@ export default function AIAuditModal({
           });
 
         const orgText = contextEnabled
-          ? buildOriginalContextText(orderedOriginalChunks, originalChunkIds, 2)
+          ? buildOriginalContextText(
+              orderedOriginalChunks,
+              originalChunkIds,
+              contextBefore,
+              contextAfter
+            )
           : originalChunks.map((chunk) => chunk.text).join('\n');
 
         const promptText = buildTripleTranslationAuditPrompt({
