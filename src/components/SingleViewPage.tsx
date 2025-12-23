@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import PDFViewer from "@/components/PDFViewer";
 import NotesPanel from "@/components/NotesPanel";
 import { Anchor, Document, NormalizedRect, Note, ScrollPosition } from "@/types/schemas";
@@ -9,6 +10,9 @@ import { authFetch } from "@/lib/authFetch";
 type SingleViewPageProps = {
   selectedDocument: Document | null;
 };
+
+const DEFAULT_NOTES_PANEL_WIDTH = 384;
+const NOTES_PANEL_WIDTH_STORAGE_KEY = "singleViewNotesPanelWidth";
 
 export default function SingleViewPage({ selectedDocument }: SingleViewPageProps) {
   const [fileData, setFileData] = useState<ArrayBuffer | null>(null);
@@ -20,6 +24,11 @@ export default function SingleViewPage({ selectedDocument }: SingleViewPageProps
   const [noteTags, setNoteTags] = useState<string[]>([]);
   const [showSingleViewAnchors, setShowSingleViewAnchors] = useState(true);
   const [singleViewScrollPosition, setSingleViewScrollPosition] = useState<ScrollPosition | undefined>(undefined);
+  const [notesPanelWidth, setNotesPanelWidth] = useState(DEFAULT_NOTES_PANEL_WIDTH);
+  const [isResizingNotesPanel, setIsResizingNotesPanel] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(DEFAULT_NOTES_PANEL_WIDTH);
 
   useEffect(() => {
     const saved = localStorage.getItem("showSingleViewAnchors");
@@ -29,8 +38,65 @@ export default function SingleViewPage({ selectedDocument }: SingleViewPageProps
   }, []);
 
   useEffect(() => {
+    const savedWidth = localStorage.getItem(NOTES_PANEL_WIDTH_STORAGE_KEY);
+    if (!savedWidth) return;
+    const parsedWidth = Number(savedWidth);
+    if (Number.isFinite(parsedWidth)) {
+      setNotesPanelWidth(parsedWidth);
+    }
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem("showSingleViewAnchors", String(showSingleViewAnchors));
   }, [showSingleViewAnchors]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      NOTES_PANEL_WIDTH_STORAGE_KEY,
+      String(Math.round(notesPanelWidth))
+    );
+  }, [notesPanelWidth]);
+
+  useEffect(() => {
+    if (!isResizingNotesPanel) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const minNotesWidth = 280;
+      const minViewerWidth = 320;
+      const { width: containerWidth } = container.getBoundingClientRect();
+      const maxNotesWidth = Math.max(minNotesWidth, containerWidth - minViewerWidth);
+      const nextWidth = resizeStartWidth.current + (resizeStartX.current - event.clientX);
+      const clampedWidth = Math.min(Math.max(nextWidth, minNotesWidth), maxNotesWidth);
+      setNotesPanelWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingNotesPanel(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingNotesPanel]);
+
+  useEffect(() => {
+    if (!isResizingNotesPanel) return;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [isResizingNotesPanel]);
 
   useEffect(() => {
     const loadFile = async () => {
@@ -105,6 +171,18 @@ export default function SingleViewPage({ selectedDocument }: SingleViewPageProps
     const timer = setTimeout(() => setSingleViewScrollPosition(undefined), 100);
     return () => clearTimeout(timer);
   }, [selectedAnchor]);
+
+  const handleResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    setIsResizingNotesPanel(true);
+    resizeStartX.current = event.clientX;
+    resizeStartWidth.current = notesPanelWidth;
+  };
+
+  const handleResizeReset = () => {
+    setNotesPanelWidth(DEFAULT_NOTES_PANEL_WIDTH);
+  };
 
   const handleAnchorCreate = async (page: number, rect: NormalizedRect, quote: string) => {
     if (!selectedDocument) return;
@@ -240,8 +318,8 @@ export default function SingleViewPage({ selectedDocument }: SingleViewPageProps
 
   if (selectedDocument && fileData) {
     return (
-      <>
-        <div className="flex-1 flex flex-col min-h-0">
+      <div ref={containerRef} className="flex flex-1 min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
           {loadingFile ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-gray-500">Loading document...</div>
@@ -266,24 +344,35 @@ export default function SingleViewPage({ selectedDocument }: SingleViewPageProps
             </div>
           )}
         </div>
-
-        <NotesPanel
-          selectedAnchor={selectedAnchor}
-          anchors={singleViewAnchors.filter(
-            (anchor) => anchor.rowNumber == null
-          )}
-          noteContent={noteContent}
-          noteTags={noteTags}
-          notesByAnchorId={singleViewNotes}
-          onNoteChange={setNoteContent}
-          onTagsChange={setNoteTags}
-          onNoteSave={handleNoteSave}
-          onNoteDelete={handleNoteDelete}
-          onSelectAnchor={setSelectedAnchor}
-          showAnchors={showSingleViewAnchors}
-          onToggleAnchors={setShowSingleViewAnchors}
-        />
-      </>
+        <div
+          className="flex w-2 flex-shrink-0 cursor-col-resize items-stretch bg-transparent hover:bg-blue-50"
+          onMouseDown={handleResizeStart}
+          onDoubleClick={handleResizeReset}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize notes panel"
+        >
+          <div className="w-px bg-gray-200 self-stretch" />
+        </div>
+        <div className="flex-shrink-0 min-h-0" style={{ width: notesPanelWidth }}>
+          <NotesPanel
+            selectedAnchor={selectedAnchor}
+            anchors={singleViewAnchors.filter(
+              (anchor) => anchor.rowNumber == null
+            )}
+            noteContent={noteContent}
+            noteTags={noteTags}
+            notesByAnchorId={singleViewNotes}
+            onNoteChange={setNoteContent}
+            onTagsChange={setNoteTags}
+            onNoteSave={handleNoteSave}
+            onNoteDelete={handleNoteDelete}
+            onSelectAnchor={setSelectedAnchor}
+            showAnchors={showSingleViewAnchors}
+            onToggleAnchors={setShowSingleViewAnchors}
+          />
+        </div>
+      </div>
     );
   }
 

@@ -29,3 +29,8 @@
 
 - Dual view divider is draggable to resize the document workspace and right-side panels
 - Right-side panel width persists across reloads; double-clicking the divider resets the width
+
+## Audit history
+
+- Audit history panel is resizable from the left edge
+- GPT Result renders Markdown formatting

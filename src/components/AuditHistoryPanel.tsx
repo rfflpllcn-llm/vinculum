@@ -1,8 +1,149 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { AuditSession } from "@/types/schemas";
 import { authFetch } from "@/lib/authFetch";
+
+const DEFAULT_AUDIT_PANEL_WIDTH = 600;
+const MIN_AUDIT_PANEL_WIDTH = 360;
+
+type MarkdownBlock =
+  | { type: "heading"; level: number; content: string }
+  | { type: "list"; items: string[] }
+  | { type: "quote"; content: string }
+  | { type: "code"; content: string }
+  | { type: "paragraph"; content: string };
+
+const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
+  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  const blocks: MarkdownBlock[] = [];
+  let paragraphLines: string[] = [];
+  let listItems: string[] = [];
+  let quoteLines: string[] = [];
+  let inCodeBlock = false;
+  let codeLines: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraphLines.length === 0) return;
+    blocks.push({ type: "paragraph", content: paragraphLines.join("\n") });
+    paragraphLines = [];
+  };
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    blocks.push({ type: "list", items: listItems });
+    listItems = [];
+  };
+
+  const flushQuote = () => {
+    if (quoteLines.length === 0) return;
+    blocks.push({ type: "quote", content: quoteLines.join("\n") });
+    quoteLines = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine;
+
+    if (line.trim().startsWith("```")) {
+      if (inCodeBlock) {
+        blocks.push({ type: "code", content: codeLines.join("\n") });
+        codeLines = [];
+        inCodeBlock = false;
+      } else {
+        flushParagraph();
+        flushList();
+        flushQuote();
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeLines.push(line);
+      continue;
+    }
+
+    if (line.trim() === "") {
+      flushParagraph();
+      flushList();
+      flushQuote();
+      continue;
+    }
+
+    if (line.startsWith(">")) {
+      flushParagraph();
+      flushList();
+      quoteLines.push(line.replace(/^>\s?/, ""));
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      flushQuote();
+      blocks.push({
+        type: "heading",
+        level: headingMatch[1].length,
+        content: headingMatch[2].trim(),
+      });
+      continue;
+    }
+
+    const listMatch = line.match(/^[-*]\s+(.*)$/);
+    if (listMatch) {
+      flushParagraph();
+      flushQuote();
+      listItems.push(listMatch[1]);
+      continue;
+    }
+
+    if (listItems.length > 0) {
+      flushList();
+    }
+
+    paragraphLines.push(line);
+  }
+
+  if (inCodeBlock) {
+    blocks.push({ type: "code", content: codeLines.join("\n") });
+  }
+
+  flushParagraph();
+  flushList();
+  flushQuote();
+
+  return blocks;
+};
+
+const renderInline = (text: string) => {
+  const parts = text.split(/(`[^`]+`)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("`") && part.endsWith("`")) {
+      const content = part.slice(1, -1);
+      return (
+        <code
+          key={`code-${index}`}
+          className="rounded bg-gray-200 px-1 py-0.5 text-[10px]"
+        >
+          {content}
+        </code>
+      );
+    }
+    return <span key={`text-${index}`}>{part}</span>;
+  });
+};
+
+const renderInlineWithBreaks = (text: string) => {
+  const lines = text.split("\n");
+  return lines.map((line, index) => (
+    <span key={`line-${index}`}>
+      {renderInline(line)}
+      {index < lines.length - 1 ? <br /> : null}
+    </span>
+  ));
+};
 
 interface AuditHistoryPanelProps {
   isOpen: boolean;
@@ -21,6 +162,11 @@ export default function AuditHistoryPanel({
   const [error, setError] = useState<string | null>(null);
   const [selectedAudit, setSelectedAudit] = useState<AuditSession | null>(null);
   const [filterByAlignment, setFilterByAlignment] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_AUDIT_PANEL_WIDTH);
+  const [isResizingPanel, setIsResizingPanel] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(DEFAULT_AUDIT_PANEL_WIDTH);
 
   const loadAudits = useCallback(async () => {
     setLoading(true);
@@ -53,6 +199,115 @@ export default function AuditHistoryPanel({
       loadAudits();
     }
   }, [isOpen, loadAudits]);
+
+  useEffect(() => {
+    if (!isResizingPanel) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const { width: containerWidth } = container.getBoundingClientRect();
+      const maxWidth = Math.max(MIN_AUDIT_PANEL_WIDTH, containerWidth - 80);
+      const nextWidth = resizeStartWidth.current + (resizeStartX.current - event.clientX);
+      const clampedWidth = Math.min(Math.max(nextWidth, MIN_AUDIT_PANEL_WIDTH), maxWidth);
+      setPanelWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingPanel(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingPanel]);
+
+  useEffect(() => {
+    if (!isResizingPanel) return;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [isResizingPanel]);
+
+  const handleResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    setIsResizingPanel(true);
+    resizeStartX.current = event.clientX;
+    resizeStartWidth.current = panelWidth;
+  };
+
+  const renderMarkdownBlocks = (content: string) => {
+    const blocks = parseMarkdownBlocks(content);
+    if (blocks.length === 0) {
+      return <div className="text-xs text-gray-400">No response.</div>;
+    }
+
+    return (
+      <div className="space-y-3 text-xs text-gray-800">
+        {blocks.map((block, index) => {
+          switch (block.type) {
+            case "heading": {
+              const HeadingTag = `h${Math.min(block.level, 6)}` as keyof JSX.IntrinsicElements;
+              return (
+                <HeadingTag
+                  key={`heading-${index}`}
+                  className="font-semibold text-gray-900"
+                >
+                  {renderInlineWithBreaks(block.content)}
+                </HeadingTag>
+              );
+            }
+            case "list":
+              return (
+                <ul key={`list-${index}`} className="list-disc list-inside space-y-1">
+                  {block.items.map((item, itemIndex) => (
+                    <li key={`list-item-${index}-${itemIndex}`}>
+                      {renderInlineWithBreaks(item)}
+                    </li>
+                  ))}
+                </ul>
+              );
+            case "quote":
+              return (
+                <blockquote
+                  key={`quote-${index}`}
+                  className="border-l-4 border-gray-300 pl-3 italic text-gray-600"
+                >
+                  {renderInlineWithBreaks(block.content)}
+                </blockquote>
+              );
+            case "code":
+              return (
+                <pre
+                  key={`code-${index}`}
+                  className="overflow-auto rounded bg-gray-900 p-3 text-[10px] text-gray-100"
+                >
+                  <code>{block.content}</code>
+                </pre>
+              );
+            case "paragraph":
+            default:
+              return (
+                <p key={`para-${index}`} className="text-xs text-gray-800">
+                  {renderInlineWithBreaks(block.content)}
+                </p>
+              );
+          }
+        })}
+      </div>
+    );
+  };
 
   const handleDelete = async (auditId: string) => {
     if (!confirm('Are you sure you want to delete this audit?')) {
@@ -92,8 +347,24 @@ export default function AuditHistoryPanel({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-end">
-      <div className="bg-white w-[600px] h-full shadow-xl flex flex-col">
+    <div
+      ref={containerRef}
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-end"
+    >
+      <div className="flex h-full">
+        <div
+          className="flex w-2 flex-shrink-0 cursor-col-resize items-stretch bg-transparent hover:bg-blue-50"
+          onMouseDown={handleResizeStart}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize audit history panel"
+        >
+          <div className="w-px bg-gray-200 self-stretch" />
+        </div>
+        <div
+          className="bg-white h-full shadow-xl flex flex-col"
+          style={{ width: panelWidth }}
+        >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl font-semibold">Audit History</h2>
@@ -230,9 +501,9 @@ export default function AuditHistoryPanel({
                       {/* Full Result */}
                       <div>
                         <div className="text-xs font-semibold text-gray-700 mb-1">GPT Result:</div>
-                        <pre className="text-xs bg-gray-50 p-2 rounded border overflow-x-auto whitespace-pre-wrap">
-                          {audit.gptResponse}
-                        </pre>
+                        <div className="text-xs bg-gray-50 p-3 rounded border">
+                          {renderMarkdownBlocks(audit.gptResponse)}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -248,6 +519,7 @@ export default function AuditHistoryPanel({
             Showing {audits.length} of {total} audits
           </div>
         )}
+        </div>
       </div>
     </div>
   );

@@ -205,6 +205,16 @@ Manage Google Drive–backed documents.
 
 ---
 
+## 13\. Audit History Panel
+
+### Behavior
+
+- Panel opens as a right-side drawer from the top navigation
+- Left edge of the panel is draggable to resize the panel width
+- GPT Result content renders Markdown (headings, lists, quotes, code, paragraphs)
+
+---
+
 ## 13\. Accessibility & UX Rules
 
 - Keyboard navigation supported  
