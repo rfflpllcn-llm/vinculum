@@ -477,7 +477,13 @@ export default function NotesPanel({
                         {markdownBlocks.map((block, index) => {
                           switch (block.type) {
                             case "heading": {
-                              const HeadingTag = `h${Math.min(block.level, 6)}` as keyof JSX.IntrinsicElements;
+                              const HeadingTag = `h${Math.min(block.level, 6)}` as
+                                | "h1"
+                                | "h2"
+                                | "h3"
+                                | "h4"
+                                | "h5"
+                                | "h6";
                               return (
                                 <HeadingTag
                                   key={`heading-${index}`}

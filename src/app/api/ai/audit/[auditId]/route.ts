@@ -11,10 +11,16 @@ const uuidSchema = z.string().uuid();
  * Delete an audit session
  */
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { auditId: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<Record<string, string | string[] | undefined>> }
 ) {
   try {
+    const resolvedParams = await params;
+    const auditId =
+      typeof resolvedParams?.auditId === 'string'
+        ? resolvedParams.auditId
+        : null;
+
     // 1. Check authentication
     const session = await getServerSession(authOptions);
 
@@ -26,7 +32,7 @@ export async function DELETE(
     }
 
     // 2. Validate UUID
-    const validationResult = uuidSchema.safeParse(params.auditId);
+    const validationResult = uuidSchema.safeParse(auditId);
     if (!validationResult.success) {
       return NextResponse.json(
         { error: 'Invalid audit ID format' },
@@ -38,7 +44,7 @@ export async function DELETE(
     const { data, error } = await supabaseAdmin
       .from('audit_sessions')
       .delete()
-      .eq('audit_id', params.auditId)
+      .eq('audit_id', validationResult.data)
       .eq('user_id', session.user.id)
       .select('audit_id'); // Ensure user owns this audit
 

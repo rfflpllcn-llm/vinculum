@@ -72,14 +72,12 @@ export async function POST(req: NextRequest) {
     const documentId = body.documentId as UUID | undefined;
     const anchorId = body.anchorId as UUID | undefined;
     const markdown = body.markdown as string | undefined;
-    const tags = Array.isArray(body.tags)
-      ? body.tags
+    const tags: string[] = Array.isArray(body.tags)
+      ? body.tags.filter((tag: unknown): tag is string => typeof tag === "string")
       : typeof body.tags === "string"
         ? body.tags.split(",")
         : [];
-    const normalizedTags = tags
-      .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
-      .filter(Boolean);
+    const normalizedTags = tags.map((tag) => tag.trim()).filter(Boolean);
 
     if (!documentId || !anchorId || typeof markdown !== "string") {
       return NextResponse.json(

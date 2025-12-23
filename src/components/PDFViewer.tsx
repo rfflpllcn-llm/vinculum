@@ -22,6 +22,10 @@ interface PDFViewerProps {
   onAnchorSelect?: (anchor: Anchor) => void;
 }
 
+type TextContentParams = NonNullable<
+  Parameters<pdfjsLib.PDFPageProxy["getTextContent"]>[0]
+>;
+
 export default function PDFViewer({
   document: doc,
   fileData,
@@ -37,7 +41,7 @@ export default function PDFViewer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const loadingTaskRef = useRef<pdfjsLib.PDFDocumentLoadingTask | null>(null);
-  const renderTaskRef = useRef<pdfjsLib.PDFRenderTask | null>(null);
+  const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -457,7 +461,12 @@ export default function PDFViewer({
     rect: DOMRect
   ): Promise<string> => {
     try {
-      const textContent = await page.getTextContent({ disableCombineTextItems: true });
+      // pdfjs-dist types lag this option; cast to keep runtime behavior.
+      const textContent = await page.getTextContent({
+        disableCombineTextItems: true,
+      } as TextContentParams & {
+        disableCombineTextItems?: boolean;
+      });
       const selectedTexts: Array<{ text: string; y: number; x: number; right: number }> = [];
       const selectionWidth = rect.width;
 

@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Stage 2: Node.js build
 FROM node:20-slim AS node-builder
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Copy package files
 COPY package*.json ./
@@ -27,15 +28,18 @@ COPY . .
 
 # Build Next.js app
 RUN npm run build
+RUN npm prune --omit=dev
 
 # Stage 3: Production runtime
 FROM node:20-slim
 WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
 
 # Install Python 3.11
 RUN apt-get update && apt-get install -y \
     python3 \
-    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python dependencies from builder
@@ -50,17 +54,7 @@ COPY --from=node-builder /app/node_modules ./node_modules
 COPY --from=node-builder /app/.next ./.next
 COPY --from=node-builder /app/public ./public
 COPY --from=node-builder /app/package*.json ./
-
-# Copy Next.js config and other necessary files
-COPY next.config.ts ./
-COPY tsconfig.json ./
-COPY tailwind.config.ts ./
-COPY postcss.config.js ./
-COPY src/ ./src/
-
-# Set environment variables
-ENV NODE_ENV=production
-ENV PORT=3000
+COPY --from=node-builder /app/next.config.js ./next.config.js
 
 # Expose port
 EXPOSE 3000
