@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import { Document, NormalizedRect, ScrollPosition, Anchor } from "@/types/schemas";
 
@@ -307,24 +307,15 @@ export default function PDFViewer({
     setSelectionRect(null);
   };
 
-  /**
-   * Compute line-based highlight rectangle from rowNumber
-   * Groups text items into lines by their top coordinate
-   * @param rowNumber - 1-indexed line number within the page
-   * @param quoteText - Optional text to match for more accurate positioning
-   * @returns Rectangle for the line, or null if not found
-   */
-  const computeLineRect = (rowNumber: number, quoteText?: string): NormalizedRect | null => {
-    if (!pageTextContent || !canvasRef.current) return null;
+  type LineGroup = {
+    key: number;
+    items: Array<{ x: number; top: number; bottom: number; width: number; text: string }>;
+    fullText: string;
+  };
 
+  const lineLayout = useMemo(() => {
+    if (!pageTextContent) return null;
     const { textContent, viewport } = pageTextContent;
-    const canvas = canvasRef.current;
-
-    interface LineGroup {
-      key: number;
-      items: Array<{ x: number; top: number; bottom: number; width: number; text: string }>;
-      fullText: string;
-    }
 
     const lineGroups: LineGroup[] = [];
 
@@ -332,7 +323,6 @@ export default function PDFViewer({
     for (const item of textContent.items) {
       if (!item.transform || !item.str) continue;
 
-      // Transform to viewport coordinates
       const tx = item.transform[4];
       const ty = item.transform[5];
       const height = Math.abs(item.transform[3]) || 12;
@@ -342,12 +332,11 @@ export default function PDFViewer({
       const top = y - height;
       const bottom = y;
 
-      // Use rounded top as grouping key (tolerant of small differences)
       const key = Math.round(top);
-      let group = lineGroups.find(g => Math.abs(g.key - key) <= 2);
+      let group = lineGroups.find((g) => Math.abs(g.key - key) <= 2);
 
       if (!group) {
-        group = { key, items: [], fullText: '' };
+        group = { key, items: [], fullText: "" };
         lineGroups.push(group);
       }
 
@@ -355,43 +344,52 @@ export default function PDFViewer({
     }
 
     // Build full text for each line and sort top to bottom
-    lineGroups.forEach(group => {
+    lineGroups.forEach((group) => {
       const sortedItems = group.items.sort((a, b) => a.x - b.x);
-      group.fullText = sortedItems.map(item => item.text).join(' ').trim();
+      group.fullText = sortedItems.map((item) => item.text).join(" ").trim();
     });
 
     lineGroups.sort((a, b) => a.key - b.key);
 
-    // Filter out very short lines (likely page numbers or decorative elements)
-    // Only filter if we have enough lines to work with
-    const substantialLines = lineGroups.filter(g => g.fullText.length > 3 || lineGroups.length <= 5);
+    const substantialLines = lineGroups.filter(
+      (g) => g.fullText.length > 3 || lineGroups.length <= 5
+    );
 
-    // If we have quote text, try to find the matching line first
+    return { lineGroups, substantialLines, viewport };
+  }, [pageTextContent]);
+
+  /**
+   * Compute line-based highlight rectangle from rowNumber using cached line groups
+   * @param rowNumber - 1-indexed line number within the page
+   * @param quoteText - Optional text to match for more accurate positioning
+   * @returns Rectangle for the line, or null if not found
+   */
+  const computeLineRect = (rowNumber: number, quoteText?: string): NormalizedRect | null => {
+    if (!lineLayout) return null;
+
+    const { lineGroups, substantialLines, viewport } = lineLayout;
+
     let targetGroup: LineGroup | null = null;
 
     if (quoteText && quoteText.trim().length > 0) {
       const normalizedQuote = quoteText.trim().toLowerCase();
 
-      // Try exact match first
-      targetGroup = substantialLines.find(g =>
-        g.fullText.toLowerCase().includes(normalizedQuote)
-      ) || null;
+      targetGroup =
+        substantialLines.find((g) => g.fullText.toLowerCase().includes(normalizedQuote)) ||
+        null;
 
-      // If no exact match, try fuzzy match (first 30 chars)
       if (!targetGroup && normalizedQuote.length > 10) {
         const quotePrefix = normalizedQuote.substring(0, Math.min(30, normalizedQuote.length));
-        targetGroup = substantialLines.find(g =>
-          g.fullText.toLowerCase().includes(quotePrefix)
-        ) || null;
+        targetGroup =
+          substantialLines.find((g) => g.fullText.toLowerCase().includes(quotePrefix)) || null;
       }
     }
 
-    // If no text match, fall back to row number
     if (!targetGroup) {
-      // Check if rowNumber is in range (1-indexed)
       if (rowNumber < 1 || rowNumber > substantialLines.length) {
-        console.warn(`Row number ${rowNumber} out of range (page has ${substantialLines.length} substantial lines out of ${lineGroups.length} total)`);
-        // Try using the original line groups as fallback
+        console.warn(
+          `Row number ${rowNumber} out of range (page has ${substantialLines.length} substantial lines out of ${lineGroups.length} total)`
+        );
         if (rowNumber >= 1 && rowNumber <= lineGroups.length) {
           targetGroup = lineGroups[rowNumber - 1];
         } else {
@@ -406,13 +404,11 @@ export default function PDFViewer({
       return null;
     }
 
-    // Compute bounding box
-    const minX = Math.min(...targetGroup.items.map(i => i.x));
-    const maxX = Math.max(...targetGroup.items.map(i => i.x + i.width));
-    const minTop = Math.min(...targetGroup.items.map(i => i.top));
-    const maxBottom = Math.max(...targetGroup.items.map(i => i.bottom));
+    const minX = Math.min(...targetGroup.items.map((i) => i.x));
+    const maxX = Math.max(...targetGroup.items.map((i) => i.x + i.width));
+    const minTop = Math.min(...targetGroup.items.map((i) => i.top));
+    const maxBottom = Math.max(...targetGroup.items.map((i) => i.bottom));
 
-    // Normalize to 0-1 coordinates
     return {
       x: minX / viewport.width,
       y: minTop / viewport.height,
