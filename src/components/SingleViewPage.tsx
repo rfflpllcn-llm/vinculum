@@ -152,10 +152,11 @@ export default function SingleViewPage({ selectedDocument }: SingleViewPageProps
     }
   };
 
-  const handleNoteSave = async (payload?: { markdown?: string; tags?: string[] }) => {
+  const handleNoteSave = async (payload?: { markdown?: string; tags?: string[]; silent?: boolean }) => {
     if (!selectedAnchor || !selectedDocument) return;
     const tagsToSave = payload?.tags ?? noteTags;
     const markdownToSave = payload?.markdown ?? noteContent;
+    const silent = payload?.silent ?? false;
     if (payload?.tags) {
       setNoteTags(payload.tags);
     }
@@ -191,10 +192,14 @@ export default function SingleViewPage({ selectedDocument }: SingleViewPageProps
         setNoteTags(data.note.tags || []);
       }
 
-      alert("Note saved successfully!");
+      if (!silent) {
+        alert("Note saved successfully!");
+      }
     } catch (error) {
       console.error("Error saving note:", error);
-      alert("Failed to save note");
+      if (!silent) {
+        alert("Failed to save note");
+      }
     }
   };
 

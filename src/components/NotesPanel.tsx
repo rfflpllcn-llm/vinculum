@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Anchor, Note } from "@/types/schemas";
 
@@ -10,6 +10,145 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   loading: () => <div className="p-4 text-gray-500">Loading editor...</div>,
 });
 
+const AUTO_SAVE_DELAY_MS = 800;
+
+type MarkdownBlock =
+  | { type: "heading"; level: number; content: string }
+  | { type: "list"; items: string[] }
+  | { type: "quote"; content: string }
+  | { type: "code"; content: string }
+  | { type: "paragraph"; content: string };
+
+const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
+  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  const blocks: MarkdownBlock[] = [];
+  let paragraphLines: string[] = [];
+  let listItems: string[] = [];
+  let quoteLines: string[] = [];
+  let inCodeBlock = false;
+  let codeLines: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraphLines.length === 0) return;
+    blocks.push({ type: "paragraph", content: paragraphLines.join("\n") });
+    paragraphLines = [];
+  };
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    blocks.push({ type: "list", items: listItems });
+    listItems = [];
+  };
+
+  const flushQuote = () => {
+    if (quoteLines.length === 0) return;
+    blocks.push({ type: "quote", content: quoteLines.join("\n") });
+    quoteLines = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine;
+
+    if (line.trim().startsWith("```")) {
+      if (inCodeBlock) {
+        blocks.push({ type: "code", content: codeLines.join("\n") });
+        codeLines = [];
+        inCodeBlock = false;
+      } else {
+        flushParagraph();
+        flushList();
+        flushQuote();
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeLines.push(line);
+      continue;
+    }
+
+    if (line.trim() === "") {
+      flushParagraph();
+      flushList();
+      flushQuote();
+      continue;
+    }
+
+    if (line.startsWith(">")) {
+      flushParagraph();
+      flushList();
+      quoteLines.push(line.replace(/^>\s?/, ""));
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      flushQuote();
+      blocks.push({
+        type: "heading",
+        level: headingMatch[1].length,
+        content: headingMatch[2].trim(),
+      });
+      continue;
+    }
+
+    const listMatch = line.match(/^[-*]\s+(.*)$/);
+    if (listMatch) {
+      flushParagraph();
+      flushQuote();
+      listItems.push(listMatch[1]);
+      continue;
+    }
+
+    if (listItems.length > 0) {
+      flushList();
+    }
+
+    paragraphLines.push(line);
+  }
+
+  if (inCodeBlock) {
+    blocks.push({ type: "code", content: codeLines.join("\n") });
+  }
+
+  flushParagraph();
+  flushList();
+  flushQuote();
+
+  return blocks;
+};
+
+const renderInline = (text: string) => {
+  const parts = text.split(/(`[^`]+`)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("`") && part.endsWith("`")) {
+      const content = part.slice(1, -1);
+      return (
+        <code
+          key={`code-${index}`}
+          className="rounded bg-gray-200 px-1 py-0.5 text-xs"
+        >
+          {content}
+        </code>
+      );
+    }
+    return <span key={`text-${index}`}>{part}</span>;
+  });
+};
+
+const renderInlineWithBreaks = (text: string) => {
+  const lines = text.split("\n");
+  return lines.map((line, index) => (
+    <span key={`line-${index}`}>
+      {renderInline(line)}
+      {index < lines.length - 1 ? <br /> : null}
+    </span>
+  ));
+};
+
 interface NotesPanelProps {
   selectedAnchor: Anchor | null;
   anchors: Anchor[];
@@ -18,7 +157,7 @@ interface NotesPanelProps {
   notesByAnchorId: Map<string, Note>;
   onNoteChange: (content: string) => void;
   onTagsChange: (tags: string[]) => void;
-  onNoteSave: (payload?: { markdown?: string; tags?: string[] }) => void;
+  onNoteSave: (payload?: { markdown?: string; tags?: string[]; silent?: boolean }) => void;
   onNoteDelete: () => void;
   onSelectAnchor: (anchor: Anchor) => void;
   showAnchors: boolean;
@@ -42,11 +181,42 @@ export default function NotesPanel({
   const [hasChanges, setHasChanges] = useState(false);
   const [tagQuery, setTagQuery] = useState("");
   const [tagInput, setTagInput] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markdownBlocks = useMemo(
+    () => (showPreview ? parseMarkdownBlocks(noteContent) : []),
+    [noteContent, showPreview]
+  );
 
   useEffect(() => {
     setHasChanges(false);
     setTagInput(noteTags.join(", "));
   }, [selectedAnchor, noteTags]);
+
+  useEffect(() => {
+    if (!selectedAnchor || !hasChanges) return;
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      const nextTags = tagInput
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      onTagsChange(nextTags);
+      onNoteSave({ markdown: noteContent, tags: nextTags, silent: true });
+      setHasChanges(false);
+    }, AUTO_SAVE_DELAY_MS);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [hasChanges, noteContent, onNoteSave, onTagsChange, selectedAnchor, tagInput]);
 
   const handleChange = (value: string | undefined) => {
     if (value !== undefined) {
@@ -72,7 +242,7 @@ export default function NotesPanel({
         .map((tag) => tag.trim())
         .filter(Boolean);
       onTagsChange(nextTags);
-      onNoteSave({ markdown: noteContent, tags: nextTags });
+      onNoteSave({ markdown: noteContent, tags: nextTags, silent: true });
       setHasChanges(false);
     }
     onSelectAnchor(anchor);
@@ -114,6 +284,12 @@ export default function NotesPanel({
           </label>
           {selectedAnchor && (
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowPreview((prev) => !prev)}
+                className="px-3 py-1 border border-gray-300 text-sm rounded hover:bg-gray-50"
+              >
+                {showPreview ? "Edit" : "Preview"}
+              </button>
               <button
                 onClick={handleSave}
                 className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
@@ -231,12 +407,13 @@ export default function NotesPanel({
                     setHasChanges(true);
                   }}
                   onBlur={() => {
+                    if (!hasChanges) return;
                     const next = tagInput
                       .split(",")
                       .map((tag) => tag.trim())
                       .filter(Boolean);
                     onTagsChange(next);
-                    onNoteSave({ tags: next });
+                    onNoteSave({ markdown: noteContent, tags: next, silent: true });
                     setHasChanges(false);
                   }}
                   className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -244,21 +421,82 @@ export default function NotesPanel({
                 />
               </div>
               <div className="flex-1 overflow-hidden">
-                <MonacoEditor
-                  height="100%"
-                  defaultLanguage="markdown"
-                  value={noteContent}
-                  onChange={handleChange}
-                  theme="vs-light"
-                  options={{
-                    minimap: { enabled: false },
-                    lineNumbers: "off",
-                    wordWrap: "on",
-                    padding: { top: 16, bottom: 16 },
-                    fontSize: 14,
-                    scrollBeyondLastLine: false,
-                  }}
-                />
+                {showPreview ? (
+                  <div className="h-full overflow-auto p-4 text-sm text-gray-800">
+                    {noteContent.trim().length === 0 ? (
+                      <div className="text-gray-400">No note content.</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {markdownBlocks.map((block, index) => {
+                          switch (block.type) {
+                            case "heading": {
+                              const HeadingTag = `h${Math.min(block.level, 6)}` as keyof JSX.IntrinsicElements;
+                              return (
+                                <HeadingTag
+                                  key={`heading-${index}`}
+                                  className="font-semibold text-gray-900"
+                                >
+                                  {renderInlineWithBreaks(block.content)}
+                                </HeadingTag>
+                              );
+                            }
+                            case "list":
+                              return (
+                                <ul key={`list-${index}`} className="list-disc list-inside space-y-1">
+                                  {block.items.map((item, itemIndex) => (
+                                    <li key={`list-item-${index}-${itemIndex}`}>
+                                      {renderInlineWithBreaks(item)}
+                                    </li>
+                                  ))}
+                                </ul>
+                              );
+                            case "quote":
+                              return (
+                                <blockquote
+                                  key={`quote-${index}`}
+                                  className="border-l-4 border-gray-300 pl-3 italic text-gray-600"
+                                >
+                                  {renderInlineWithBreaks(block.content)}
+                                </blockquote>
+                              );
+                            case "code":
+                              return (
+                                <pre
+                                  key={`code-${index}`}
+                                  className="overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-100"
+                                >
+                                  <code>{block.content}</code>
+                                </pre>
+                              );
+                            case "paragraph":
+                            default:
+                              return (
+                                <p key={`para-${index}`} className="text-sm text-gray-800">
+                                  {renderInlineWithBreaks(block.content)}
+                                </p>
+                              );
+                          }
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <MonacoEditor
+                    height="100%"
+                    defaultLanguage="markdown"
+                    value={noteContent}
+                    onChange={handleChange}
+                    theme="vs-light"
+                    options={{
+                      minimap: { enabled: false },
+                      lineNumbers: "off",
+                      wordWrap: "on",
+                      padding: { top: 16, bottom: 16 },
+                      fontSize: 14,
+                      scrollBeyondLastLine: false,
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
