@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   vinculum:
-    image: vinculum:latest
+    image: rfflpllcnllm/vinculum:latest
     build:
       context: .
       dockerfile: Dockerfile
