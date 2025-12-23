@@ -20,3 +20,12 @@
 
 - Reloading app restores library, notes, and alignments
 
+## Single view layout
+
+- Notes panel divider is draggable to resize the document and notes widths
+- Notes panel width persists across reloads; double-clicking the divider resets the width
+
+## Dual view layout
+
+- Dual view divider is draggable to resize the document workspace and right-side panels
+- Right-side panel width persists across reloads; double-clicking the divider resets the width

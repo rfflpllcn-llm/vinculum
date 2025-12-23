@@ -55,7 +55,7 @@ export default function DualViewAlignmentSidebar({
   targetLanguage,
 }: DualViewAlignmentSidebarProps) {
   return (
-    <div className="w-80 bg-white border-l overflow-y-auto">
+    <div className="flex-1 min-w-[240px] bg-white border-l overflow-y-auto min-h-0">
       <div className="p-3 border-b space-y-2">
         <label className="flex items-center space-x-2">
           <input

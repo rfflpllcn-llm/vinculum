@@ -41,7 +41,7 @@ export default function DualViewWorkspace({
   loadingAlignmentData,
 }: DualViewWorkspaceProps) {
   return (
-    <div className="relative flex-1 flex">
+    <div className="relative flex-1 flex min-w-0 min-h-0">
       <DualDocumentView
         sourceDocument={sourceDocument}
         targetDocument={targetDocument}

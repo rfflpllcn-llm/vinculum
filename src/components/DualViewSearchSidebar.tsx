@@ -17,7 +17,7 @@ export default function DualViewSearchSidebar({
   onNavigate,
 }: DualViewSearchSidebarProps) {
   return (
-    <div className="w-80 bg-white border-l overflow-y-auto">
+    <div className="flex-1 min-w-[240px] bg-white overflow-y-auto min-h-0">
       <div className="p-2 border-b bg-gray-100">
         <h3 className="text-sm font-semibold text-gray-700">Search</h3>
       </div>

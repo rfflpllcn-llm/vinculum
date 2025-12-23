@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import AIAuditModal from "@/components/AIAuditModal";
 import AlignmentUploadPanel from "@/components/AlignmentUploadPanel";
 import DualViewAlignmentSidebar from "@/components/DualViewAlignmentSidebar";
@@ -15,6 +16,11 @@ type DualViewPageProps = {
   onDocumentsChange?: (hasDocuments: boolean) => void;
   onSelectedAlignmentIdChange?: (alignmentId: string | undefined) => void;
 };
+
+const DEFAULT_DUAL_SIDEBARS_WIDTH = 640;
+const DUAL_SIDEBARS_WIDTH_STORAGE_KEY = "dualViewSidebarsWidth";
+const MIN_DUAL_SIDEBAR_COLUMN_WIDTH = 240;
+const MIN_DUAL_WORKSPACE_WIDTH = 640;
 
 export default function DualViewPage({
   onRegisterReset,
@@ -51,6 +57,11 @@ export default function DualViewPage({
     sourceLang?: string;
     targetLang?: string;
   }>>([]);
+  const [sidebarsWidth, setSidebarsWidth] = useState(DEFAULT_DUAL_SIDEBARS_WIDTH);
+  const [isResizingSidebars, setIsResizingSidebars] = useState(false);
+  const dualViewContainerRef = useRef<HTMLDivElement | null>(null);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(DEFAULT_DUAL_SIDEBARS_WIDTH);
 
   useEffect(() => {
     const loadDocuments = async () => {
@@ -67,6 +78,65 @@ export default function DualViewPage({
 
     loadDocuments();
   }, []);
+
+  useEffect(() => {
+    const savedWidth = localStorage.getItem(DUAL_SIDEBARS_WIDTH_STORAGE_KEY);
+    if (!savedWidth) return;
+    const parsedWidth = Number(savedWidth);
+    if (Number.isFinite(parsedWidth)) {
+      setSidebarsWidth(parsedWidth);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      DUAL_SIDEBARS_WIDTH_STORAGE_KEY,
+      String(Math.round(sidebarsWidth))
+    );
+  }, [sidebarsWidth]);
+
+  useEffect(() => {
+    if (!isResizingSidebars) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const container = dualViewContainerRef.current;
+      if (!container) return;
+
+      const minSidebarsWidth = MIN_DUAL_SIDEBAR_COLUMN_WIDTH * 2;
+      const { width: containerWidth } = container.getBoundingClientRect();
+      const maxSidebarsWidth = Math.max(
+        minSidebarsWidth,
+        containerWidth - MIN_DUAL_WORKSPACE_WIDTH
+      );
+      const nextWidth = resizeStartWidth.current + (resizeStartX.current - event.clientX);
+      const clampedWidth = Math.min(Math.max(nextWidth, minSidebarsWidth), maxSidebarsWidth);
+      setSidebarsWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSidebars(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingSidebars]);
+
+  useEffect(() => {
+    if (!isResizingSidebars) return;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [isResizingSidebars]);
 
   const handleResetDualView = useCallback(() => {
     setSourceDocument(null);
@@ -433,60 +503,88 @@ export default function DualViewPage({
     setTargetDocCached(true);
   };
 
+  const handleSidebarResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    setIsResizingSidebars(true);
+    resizeStartX.current = event.clientX;
+    resizeStartWidth.current = sidebarsWidth;
+  };
+
+  const handleSidebarResizeReset = () => {
+    setSidebarsWidth(DEFAULT_DUAL_SIDEBARS_WIDTH);
+  };
+
   return (
     <>
       {sourceDocument && targetDocument && sourceFileData && targetFileData ? (
-        <>
-          <DualViewWorkspace
-            sourceDocument={sourceDocument}
-            targetDocument={targetDocument}
-            sourceFileData={sourceFileData}
-            targetFileData={targetFileData}
-            sourceAnchors={sourceAnchors}
-            targetAnchors={targetAnchors}
-            alignments={alignments}
-            syncScrollEnabled={syncScrollEnabled}
-            onAlignmentSelect={handleAlignmentSelect}
-            onSourcePageChange={setCurrentSourcePage}
-            selectedSourceAnchors={selectedSourceAnchors}
-            selectedTargetAnchors={selectedTargetAnchors}
-            requestedSourcePage={requestedSourcePage}
-            requestedTargetPage={requestedTargetPage}
-            alignmentTargetPage={alignmentTargetPage}
-            loadingAlignmentData={loadingAlignmentData}
-          />
-          <DualViewSearchSidebar
-            chunkMap={chunkMap}
-            sourceAnchors={sourceAnchors}
-            targetAnchors={targetAnchors}
-            onNavigate={handleSearchNavigate}
-          />
-          <DualViewAlignmentSidebar
-            syncScrollEnabled={syncScrollEnabled}
-            useCache={useCache}
-            onToggleSyncScroll={setSyncScrollEnabled}
-            onToggleUseCache={setUseCache}
-            currentSourcePage={currentSourcePage}
-            filteredAlignmentsCount={filteredAlignments.length}
-            totalAlignmentsCount={alignments.length}
-            sourceDocCached={sourceDocCached}
-            targetDocCached={targetDocCached}
-            sourceDocument={sourceDocument}
-            targetDocument={targetDocument}
-            onRefreshSource={handleRefreshSource}
-            onRefreshTarget={handleRefreshTarget}
-            filteredAlignments={filteredAlignments}
-            allAlignments={alignments}
-            sourceAnchors={sourceAnchors}
-            targetAnchors={targetAnchors}
-            onSelect={handleAlignmentSelect}
-            selectedAlignmentId={selectedAlignment?.alignmentId}
-            onAudit={handleAuditClick}
-            chunkMap={chunkMap}
-            sourceLanguage={sourceLanguage}
-            targetLanguage={targetLanguage}
-          />
-        </>
+        <div ref={dualViewContainerRef} className="flex flex-1 min-h-0 min-w-0">
+          <div className="flex-1 min-w-0 min-h-0">
+            <DualViewWorkspace
+              sourceDocument={sourceDocument}
+              targetDocument={targetDocument}
+              sourceFileData={sourceFileData}
+              targetFileData={targetFileData}
+              sourceAnchors={sourceAnchors}
+              targetAnchors={targetAnchors}
+              alignments={alignments}
+              syncScrollEnabled={syncScrollEnabled}
+              onAlignmentSelect={handleAlignmentSelect}
+              onSourcePageChange={setCurrentSourcePage}
+              selectedSourceAnchors={selectedSourceAnchors}
+              selectedTargetAnchors={selectedTargetAnchors}
+              requestedSourcePage={requestedSourcePage}
+              requestedTargetPage={requestedTargetPage}
+              alignmentTargetPage={alignmentTargetPage}
+              loadingAlignmentData={loadingAlignmentData}
+            />
+          </div>
+          <div
+            className="flex w-2 flex-shrink-0 cursor-col-resize items-stretch bg-transparent hover:bg-blue-50"
+            onMouseDown={handleSidebarResizeStart}
+            onDoubleClick={handleSidebarResizeReset}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize side panels"
+          >
+            <div className="w-px bg-gray-200 self-stretch" />
+          </div>
+          <div className="flex-shrink-0 min-h-0" style={{ width: sidebarsWidth }}>
+            <div className="flex h-full min-h-0 min-w-0">
+              <DualViewSearchSidebar
+                chunkMap={chunkMap}
+                sourceAnchors={sourceAnchors}
+                targetAnchors={targetAnchors}
+                onNavigate={handleSearchNavigate}
+              />
+              <DualViewAlignmentSidebar
+                syncScrollEnabled={syncScrollEnabled}
+                useCache={useCache}
+                onToggleSyncScroll={setSyncScrollEnabled}
+                onToggleUseCache={setUseCache}
+                currentSourcePage={currentSourcePage}
+                filteredAlignmentsCount={filteredAlignments.length}
+                totalAlignmentsCount={alignments.length}
+                sourceDocCached={sourceDocCached}
+                targetDocCached={targetDocCached}
+                sourceDocument={sourceDocument}
+                targetDocument={targetDocument}
+                onRefreshSource={handleRefreshSource}
+                onRefreshTarget={handleRefreshTarget}
+                filteredAlignments={filteredAlignments}
+                allAlignments={alignments}
+                sourceAnchors={sourceAnchors}
+                targetAnchors={targetAnchors}
+                onSelect={handleAlignmentSelect}
+                selectedAlignmentId={selectedAlignment?.alignmentId}
+                onAudit={handleAuditClick}
+                chunkMap={chunkMap}
+                sourceLanguage={sourceLanguage}
+                targetLanguage={targetLanguage}
+              />
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="flex items-center justify-center w-full">
           <AlignmentUploadPanel documents={availableDocuments} onUpload={handleAlignmentUpload} />

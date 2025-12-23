@@ -68,6 +68,8 @@ Manage Google Drive–backed documents.
 - Notes panel uses Monaco Editor  
 - Selecting a region enables anchor creation  
 - Notes auto-save on edit
+- Divider between the PDF viewer and notes panel is draggable to resize widths
+- Notes panel width persists across reloads; double-clicking the divider resets to default width
 - Status legend: items marked "(planned)" are not yet implemented; everything else reflects current behavior
 
 ---
@@ -121,6 +123,8 @@ Manage Google Drive–backed documents.
 - Activated via the View mode toggle (Single / Dual) in the top navigation  
 - Both documents load simultaneously  
 - Anchors are visually paired when aligned
+- Divider between the dual document workspace and right-side panels is draggable to resize widths
+- Right-side panel width persists across reloads; double-clicking the divider resets to default width
 
 ---
 
