@@ -255,6 +255,7 @@ All specifications are in the `specs/` directory, and usage guides are in `docs/
 - `docs/INTEGRATION.md` - Alignment generation pipeline
 - `docs/HIGHLIGHTING.md` - Anchor highlighting behavior
 - `docs/TESTING.md` - Test and verification steps
+- `docs/WINDOWS_USER_GUIDE.md` - Windows Docker install guide
 
 ## Contributing
 
