@@ -17,7 +17,28 @@ type MarkdownBlock =
   | { type: "list"; items: string[] }
   | { type: "quote"; content: string }
   | { type: "code"; content: string }
+  | { type: "table"; headers: string[]; rows: string[][] }
   | { type: "paragraph"; content: string };
+
+const splitTableRow = (line: string) => {
+  const trimmed = line.trim();
+  const withoutLeading = trimmed.startsWith("|") ? trimmed.slice(1) : trimmed;
+  const withoutTrailing = withoutLeading.endsWith("|")
+    ? withoutLeading.slice(0, -1)
+    : withoutLeading;
+  return withoutTrailing.split("|").map((cell) => cell.trim());
+};
+
+const isTableSeparator = (line: string) => {
+  const cells = splitTableRow(line);
+  if (cells.length === 0) return false;
+  return cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+};
+
+const normalizeTableRow = (cells: string[], length: number) => {
+  if (cells.length >= length) return cells;
+  return [...cells, ...Array.from({ length: length - cells.length }, () => "")];
+};
 
 const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
@@ -46,8 +67,8 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
     quoteLines = [];
   };
 
-  for (const rawLine of lines) {
-    const line = rawLine;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
 
     if (line.trim().startsWith("```")) {
       if (inCodeBlock) {
@@ -72,6 +93,32 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
       flushParagraph();
       flushList();
       flushQuote();
+      continue;
+    }
+
+    const nextLine = lines[i + 1] ?? "";
+    if (line.includes("|") && isTableSeparator(nextLine)) {
+      flushParagraph();
+      flushList();
+      flushQuote();
+      const headers = splitTableRow(line);
+      i += 1; // Skip separator line
+      const rows: string[][] = [];
+      while (i + 1 < lines.length) {
+        const rowLine = lines[i + 1];
+        if (rowLine.trim() === "" || rowLine.trim().startsWith("```")) {
+          break;
+        }
+        if (!rowLine.includes("|")) {
+          break;
+        }
+        rows.push(splitTableRow(rowLine));
+        i += 1;
+      }
+      const columnCount = Math.max(headers.length, ...rows.map((row) => row.length), 0);
+      const normalizedHeaders = normalizeTableRow(headers, columnCount);
+      const normalizedRows = rows.map((row) => normalizeTableRow(row, columnCount));
+      blocks.push({ type: "table", headers: normalizedHeaders, rows: normalizedRows });
       continue;
     }
 
@@ -459,7 +506,7 @@ export default function NotesPanel({
                                   {renderInlineWithBreaks(block.content)}
                                 </blockquote>
                               );
-                            case "code":
+                          case "code":
                               return (
                                 <pre
                                   key={`code-${index}`}
@@ -468,11 +515,50 @@ export default function NotesPanel({
                                   <code>{block.content}</code>
                                 </pre>
                               );
-                            case "paragraph":
-                            default:
-                              return (
-                                <p key={`para-${index}`} className="text-sm text-gray-800">
-                                  {renderInlineWithBreaks(block.content)}
+                          case "table":
+                            return (
+                              <div
+                                key={`table-${index}`}
+                                className="overflow-x-auto rounded border border-gray-200"
+                              >
+                                <table className="w-full border-collapse text-xs text-gray-800">
+                                  <thead className="bg-gray-100 text-gray-700">
+                                    <tr>
+                                      {block.headers.map((header, headerIndex) => (
+                                        <th
+                                          key={`table-header-${index}-${headerIndex}`}
+                                          className="border-b border-gray-200 px-2 py-1 text-left font-semibold"
+                                        >
+                                          {renderInlineWithBreaks(header)}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {block.rows.map((row, rowIndex) => (
+                                      <tr
+                                        key={`table-row-${index}-${rowIndex}`}
+                                        className={rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                                      >
+                                        {row.map((cell, cellIndex) => (
+                                          <td
+                                            key={`table-cell-${index}-${rowIndex}-${cellIndex}`}
+                                            className="border-b border-gray-100 px-2 py-1 align-top"
+                                          >
+                                            {renderInlineWithBreaks(cell)}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          case "paragraph":
+                          default:
+                            return (
+                              <p key={`para-${index}`} className="text-sm text-gray-800">
+                                {renderInlineWithBreaks(block.content)}
                                 </p>
                               );
                           }
