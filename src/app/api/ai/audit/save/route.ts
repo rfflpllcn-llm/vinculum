@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { z } from 'zod';
 
 // Validation schema
@@ -47,6 +47,8 @@ export async function POST(req: NextRequest) {
     }
 
     const data = validationResult.data;
+
+    const supabaseAdmin = getSupabaseAdmin();
 
     // 3. Insert audit session into Supabase (server-only, no RLS)
     const { data: insertedData, error } = await supabaseAdmin

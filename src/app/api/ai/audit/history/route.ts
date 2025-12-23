@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 /**
  * GET /api/ai/audit/history
@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
     const alignmentId = searchParams.get('alignmentId');
     const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100); // Max 100
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10), 0);
+
+    const supabaseAdmin = getSupabaseAdmin();
 
     // 3. Build query with manual user_id filtering
     let query = supabaseAdmin

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { DriveService } from "@/lib/drive";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { generateUUID } from "@/lib/utils";
 import { Document } from "@/types/schemas";
 
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ documents: [] });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     const driveFileIds = driveDocuments.map((doc) => doc.driveFileId);
     const { data: existingDocs, error: existingError } = await supabaseAdmin
       .from("documents")

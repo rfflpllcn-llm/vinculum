@@ -5,7 +5,7 @@ import "server-only";
  * Stores task state in Supabase for persistence across instances
  */
 
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { Database, Json } from "@/types/supabase";
 
 export type TaskStatus = "pending" | "running" | "completed" | "failed";
@@ -52,6 +52,7 @@ function mapTask(row: TaskRow): GenerationTask {
  * Create a new task
  */
 export async function createTask(userId: string): Promise<GenerationTask> {
+  const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin
     .from("generation_tasks")
     .insert({
@@ -78,6 +79,7 @@ export async function getTask(
   taskId: string,
   userId: string
 ): Promise<GenerationTask | null> {
+  const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin
     .from("generation_tasks")
     .select("*")
@@ -99,6 +101,7 @@ export async function updateTask(
   taskId: string,
   updates: Partial<Omit<GenerationTask, "taskId" | "createdAt">>
 ): Promise<GenerationTask | null> {
+  const supabaseAdmin = getSupabaseAdmin();
   const payload: Database["public"]["Tables"]["generation_tasks"]["Update"] = {
     updated_at: new Date().toISOString(),
   };
@@ -137,6 +140,7 @@ export async function updateTask(
  * Delete task
  */
 export async function deleteTask(taskId: string, userId: string): Promise<boolean> {
+  const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin
     .from("generation_tasks")
     .delete()
@@ -155,6 +159,7 @@ export async function deleteTask(taskId: string, userId: string): Promise<boolea
  * Clean up old tasks (older than 1 hour)
  */
 export async function cleanupOldTasks(retentionHours = 1): Promise<number> {
+  const supabaseAdmin = getSupabaseAdmin();
   const cutoff = new Date(
     Date.now() - Math.max(retentionHours, 0) * 60 * 60 * 1000
   ).toISOString();
@@ -176,6 +181,7 @@ export async function cleanupOldTasks(retentionHours = 1): Promise<number> {
  * Get all tasks (for debugging)
  */
 export async function getAllTasks(): Promise<GenerationTask[]> {
+  const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin
     .from("generation_tasks")
     .select("*")

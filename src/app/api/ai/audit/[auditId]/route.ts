@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { z } from 'zod';
 
 const uuidSchema = z.string().uuid();
@@ -39,6 +39,8 @@ export async function DELETE(
         { status: 400 }
       );
     }
+
+    const supabaseAdmin = getSupabaseAdmin();
 
     // 3. Delete audit session with manual user_id check
     const { data, error } = await supabaseAdmin
