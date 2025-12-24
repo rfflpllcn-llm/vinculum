@@ -157,13 +157,25 @@ This is the trust anchor.
 ### Phase 1 — Hosted MVP (ship fast)
 **Outcome:** users can use Vinculum from a URL with Google sign-in.
 
-- Host Next.js (Vercel or Cloud Run)
-- Create one Supabase project owned by Vinculum
-- Add DB migrations (no manual SQL copy/paste)
-- Implement RLS + user-scoped tables
-- Implement Drive picker + document library
-- Implement anchors + notes saving
-- Add `/settings/privacy` and `/disconnect`
+Step-by-step checklist:
+1. **Pick hosting + domain**
+   - Decide Vercel vs Cloud Run, provision `app.vinculum.xyz`
+2. **Create shared Supabase project**
+   - One project owned by Vinculum, enable auth + storage needs
+3. **Add migrations**
+   - Move schema to migrations; no manual SQL copy/paste
+4. **Implement RLS + user scoping**
+   - RLS on all user tables; server routes never trust client `user_id`
+5. **Google OAuth (single app)**
+   - Register OAuth app owned by Vinculum; configure redirect URIs
+6. **Drive picker + library**
+   - Allow users to pick PDFs; store Drive file IDs + metadata
+7. **Anchors + notes persistence**
+   - Save anchors/notes to the shared DB per user
+8. **Privacy + disconnect**
+   - Add `/settings/privacy` page and `/disconnect` flow
+9. **Smoke test**
+   - New user from URL → sign in → pick PDF → anchor + note → disconnect
 
 Acceptance criteria:
 - New user can start in < 5 minutes
