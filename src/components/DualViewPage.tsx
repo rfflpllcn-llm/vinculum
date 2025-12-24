@@ -59,6 +59,7 @@ export default function DualViewPage({
   }>>([]);
   const [sidebarsWidth, setSidebarsWidth] = useState(DEFAULT_DUAL_SIDEBARS_WIDTH);
   const [isResizingSidebars, setIsResizingSidebars] = useState(false);
+  const [alignmentLoadNotice, setAlignmentLoadNotice] = useState<string | null>(null);
   const dualViewContainerRef = useRef<HTMLDivElement | null>(null);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(DEFAULT_DUAL_SIDEBARS_WIDTH);
@@ -125,6 +126,12 @@ export default function DualViewPage({
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isResizingSidebars]);
+
+  useEffect(() => {
+    if (!alignmentLoadNotice) return;
+    const timer = setTimeout(() => setAlignmentLoadNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [alignmentLoadNotice]);
 
   useEffect(() => {
     if (!isResizingSidebars) return;
@@ -307,7 +314,7 @@ export default function DualViewPage({
       setOriginalLanguage(options?.originalLanguage || null);
       setLoadingAlignmentData(false);
 
-      alert(
+      setAlignmentLoadNotice(
         `Loaded ${result.sourceAnchorsCount} source anchors, ${result.targetAnchorsCount} target anchors, and ${result.alignmentsCount} alignments!`
       );
     } catch (error) {
@@ -517,6 +524,11 @@ export default function DualViewPage({
 
   return (
     <>
+      {alignmentLoadNotice && (
+        <div className="fixed bottom-4 right-4 z-50 rounded-md bg-green-600 px-4 py-2 text-sm text-white shadow-lg">
+          {alignmentLoadNotice}
+        </div>
+      )}
       {sourceDocument && targetDocument && sourceFileData && targetFileData ? (
         <div ref={dualViewContainerRef} className="flex flex-1 min-h-0 min-w-0">
           <div className="flex-1 min-w-0 min-h-0">
