@@ -5,6 +5,7 @@ import Modal from './Modal';
 import { Anchor, Alignment, AITask } from '@/types/schemas';
 import { authFetch } from '@/lib/authFetch';
 import { buildSingleTranslationAuditPrompt, buildTripleTranslationAuditPrompt } from '@/lib/aiPrompts';
+import { AI_MODEL_OPTIONS, DEFAULT_AI_MODEL } from '@/lib/aiModels';
 
 /**
  * AI Audit Modal Component
@@ -65,7 +66,7 @@ export default function AIAuditModal({
 
   // Audit saving state
   const [gptResult, setGptResult] = useState<string>('');
-  const [gptModel, setGptModel] = useState<string>('gpt-4');
+  const [gptModel, setGptModel] = useState<string>(DEFAULT_AI_MODEL);
   const [taskName, setTaskName] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -580,11 +581,11 @@ export default function AIAuditModal({
                 onChange={(e) => setGptModel(e.target.value)}
                 className="text-xs border rounded px-2 py-1"
               >
-                <option value="gpt-4">GPT-4</option>
-                <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                <option value="o1">o1</option>
-                <option value="o1-mini">o1-mini</option>
+                {AI_MODEL_OPTIONS.map((model) => (
+                  <option key={model.value} value={model.value}>
+                    {model.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
