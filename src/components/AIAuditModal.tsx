@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Modal from './Modal';
 import { Anchor, Alignment, AITask } from '@/types/schemas';
 import { authFetch } from '@/lib/authFetch';
-import { buildTripleTranslationAuditPrompt } from '@/lib/aiPrompts';
+import { buildSingleTranslationAuditPrompt, buildTripleTranslationAuditPrompt } from '@/lib/aiPrompts';
 
 /**
  * AI Audit Modal Component
@@ -301,14 +301,29 @@ export default function AIAuditModal({
             )
           : originalChunks.map((chunk) => chunk.text).join('\n');
 
-        const promptText = buildTripleTranslationAuditPrompt({
-          orgLanguage: normalizedOriginalLang,
-          srcLanguage: normalizedSourceLang,
-          tgtLanguage: normalizedTargetLang,
-          orgText,
-          srcText: editableSourceText,
-          tgtText: editableTargetText,
-        });
+        const originalMatchesSource = normalizedOriginalLang === normalizedSourceLang;
+        const originalMatchesTarget = normalizedOriginalLang === normalizedTargetLang;
+
+        const promptText =
+          originalMatchesSource !== originalMatchesTarget
+            ? buildSingleTranslationAuditPrompt({
+                orgLanguage: normalizedOriginalLang,
+                translationLanguage: originalMatchesSource
+                  ? normalizedTargetLang
+                  : normalizedSourceLang,
+                orgText,
+                translationText: originalMatchesSource
+                  ? editableTargetText
+                  : editableSourceText,
+              })
+            : buildTripleTranslationAuditPrompt({
+                orgLanguage: normalizedOriginalLang,
+                srcLanguage: normalizedSourceLang,
+                tgtLanguage: normalizedTargetLang,
+                orgText,
+                srcText: editableSourceText,
+                tgtText: editableTargetText,
+              });
         setPrompt(promptText);
         return;
       }
