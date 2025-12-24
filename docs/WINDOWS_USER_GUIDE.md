@@ -110,7 +110,15 @@ Create an API key at https://platform.openai.com/api-keys (optional, only needed
 
 Keep the service role key secret.
 
-## 5. Start the app
+## 5. Initialize Supabase tables
+
+1. In your Supabase project, open SQL Editor -> New query.
+2. Paste the contents of `docs/supabase_builder.sql` from this repository.
+3. Run the query to create the required tables and policies.
+
+Note: the script drops and recreates `documents`, `generation_tasks`, and `audit_sessions` (plus the `task_type_enum` type), so only run it on a fresh project or after backing up data.
+
+## 6. Start the app
 
 ```powershell
 docker compose pull
@@ -119,7 +127,7 @@ docker compose up -d
 
 Open: http://localhost:3000
 
-## 6. First-time use
+## 7. First-time use
 
 - Sign in with Google.
 - Vinculum will create `/Vinculum_Data/Books/` in your Drive.

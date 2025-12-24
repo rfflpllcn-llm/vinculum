@@ -105,11 +105,8 @@ openssl rand -base64 32
 
 ### 4. Supabase Database Setup
 
-Create tables to match `src/types/supabase.ts`.
-
-Starting point:
-- `scripts/supabase/documents.sql` for the `documents` table
-- `docs/USE-CASES.md` for example `audit_sessions` SQL
+Run the SQL in `docs/supabase_builder.sql` in the Supabase SQL editor to create the required tables, indexes, and RLS policies.
+The script drops and recreates `documents`, `generation_tasks`, and `audit_sessions` (plus the `task_type_enum` type), so use it on a fresh project or after backing up data.
 
 ### 5. (Optional) Install Python Dependencies
 

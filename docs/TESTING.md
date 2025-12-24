@@ -56,7 +56,15 @@ Scopes to include:
    openssl rand -base64 32
    ```
 
-## Step 3: Install and Run
+## Step 3: Initialize Supabase tables
+
+1. In your Supabase project, open SQL Editor -> New query.
+2. Paste the contents of `docs/supabase_builder.sql`.
+3. Run the query to create the required tables, indexes, and RLS policies.
+
+Note: the script drops and recreates `documents`, `generation_tasks`, and `audit_sessions` (plus the `task_type_enum` type), so only run it on a fresh project or after backing up data.
+
+## Step 4: Install and Run
 
 ```bash
 npm install
@@ -65,12 +73,12 @@ npm run dev
 
 Open http://localhost:3000 and sign in with Google.
 
-## Step 4: Upload Test PDFs
+## Step 5: Upload Test PDFs
 
 1. In Google Drive, create or open `/Vinculum_Data/Books/`.
 2. Upload one or more PDF files.
 
-## Step 5: Single View Tests
+## Step 6: Single View Tests
 
 1. Click **Library** and select a PDF.
 2. Verify the PDF loads and page/zoom controls work.
@@ -84,7 +92,7 @@ Open http://localhost:3000 and sign in with Google.
 5. Refresh the page and re-open the document.
    - Anchors and notes should reload from Drive.
 
-## Step 6: Dual View + Alignments
+## Step 7: Dual View + Alignments
 
 1. Switch to **Dual** using the View toggle in the top bar.
 2. Use **Alignment Upload**:
@@ -104,7 +112,7 @@ Open http://localhost:3000 and sign in with Google.
    - Search panel can navigate to anchors.
    - Sync scroll can be toggled.
 
-## Step 7: AI Audit
+## Step 8: AI Audit
 
 1. Select an alignment from the sidebar.
 2. Click **AI Audit**.
