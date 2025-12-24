@@ -1,9 +1,9 @@
-name: Deploy to Vercel
+name: Deploy to Cloud Run
 
 on:
   push:
     branches:
-      - dev-vercel  # Triggers deployment when code is pushed to the 'dev-vercel' branch
+      - main  # Triggers deployment when code is pushed to the 'main' branch
 
 jobs:
   deploy:
@@ -12,18 +12,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          node-version: '20'  # Next.js requires >=18.18
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Build project
-        run: npm run build  # Adjust this if your project uses a different build command
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
 
-      - name: Deploy to Vercel
+      - name: Build and push image
+        run: |
+          gcloud builds submit \
+            --tag ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_AR_REPO }}/vinculum:${{ github.sha }} \
+            .
+
+      - name: Deploy to Cloud Run
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}  # Pulls Vercel token from GitHub secrets
-        run: npx vercel --prod --yes --token $VERCEL_TOKEN
+          SERVICE_URL: ${{ secrets.CLOUD_RUN_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          gcloud run deploy ${{ secrets.CLOUD_RUN_SERVICE }} \
+            --image ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_AR_REPO }}/vinculum:${{ github.sha }} \
+            --region ${{ secrets.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 3000 \
+            --set-env-vars \
+NODE_ENV=production,\
+NEXTAUTH_URL=$SERVICE_URL,\
+NEXTAUTH_SECRET=$NEXTAUTH_SECRET,\
+GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID,\
+GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET,\
+NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL,\
+NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY,\
+SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,\
+OPENAI_API_KEY=$OPENAI_API_KEY \
+            --cpu=1 \
+            --memory=1Gi \
+            --min-instances=0 \
+            --max-instances=2 \
+            --timeout=900

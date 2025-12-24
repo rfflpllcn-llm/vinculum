@@ -1,0 +1,33 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: vinculum
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "2"
+    spec:
+      containers:
+        - image: europe-west1-docker.pkg.dev/YOUR_PROJECT_ID/vinculum/vinculum:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: NEXTAUTH_URL
+              value: "https://YOUR_SERVICE_URL"
+            - name: NEXTAUTH_SECRET
+              value: "YOUR_SECRET"
+            - name: GOOGLE_CLIENT_ID
+              value: "YOUR_CLIENT_ID"
+            - name: GOOGLE_CLIENT_SECRET
+              value: "YOUR_CLIENT_SECRET"
+            - name: NEXT_PUBLIC_SUPABASE_URL
+              value: "YOUR_SUPABASE_URL"
+            - name: NEXT_PUBLIC_SUPABASE_ANON_KEY
+              value: "YOUR_SUPABASE_ANON_KEY"
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              value: "YOUR_SUPABASE_SERVICE_ROLE_KEY"
+            - name: OPENAI_API_KEY
+              value: "YOUR_OPENAI_API_KEY"
