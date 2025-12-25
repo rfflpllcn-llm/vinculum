@@ -304,6 +304,9 @@ export default function AIAuditModal({
 
         const originalMatchesSource = normalizedOriginalLang === normalizedSourceLang;
         const originalMatchesTarget = normalizedOriginalLang === normalizedTargetLang;
+        const orgTextForPrompt = originalMatchesSource
+          ? editableSourceText
+          : (originalMatchesTarget ? editableTargetText : orgText);
 
         const promptText =
           originalMatchesSource !== originalMatchesTarget
@@ -312,7 +315,7 @@ export default function AIAuditModal({
                 translationLanguage: originalMatchesSource
                   ? normalizedTargetLang
                   : normalizedSourceLang,
-                orgText,
+                orgText: orgTextForPrompt,
                 translationText: originalMatchesSource
                   ? editableTargetText
                   : editableSourceText,
@@ -321,7 +324,7 @@ export default function AIAuditModal({
                 orgLanguage: normalizedOriginalLang,
                 srcLanguage: normalizedSourceLang,
                 tgtLanguage: normalizedTargetLang,
-                orgText,
+                orgText: orgTextForPrompt,
                 srcText: editableSourceText,
                 tgtText: editableTargetText,
               });
