@@ -1,0 +1,48 @@
+# Node
+node_modules/
+.next/
+npm-debug.log
+yarn-error.log
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Git
+.git/
+.gitignore
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+coverage/
+.pytest_cache/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Misc
+.DS_Store
+*.log
+
+# Keep these files
+!.dockerignore
+!Dockerfile
